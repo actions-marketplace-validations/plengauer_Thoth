@@ -1,0 +1,691 @@
+name: 'GitHub'
+on:
+  workflow_call:
+    inputs:
+      ref:
+        type: string
+        required: true
+env:
+  OTEL_SHELL_CONFIG_GITHUB_IS_TEST: 'TRUE'
+jobs:
+  job-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@v5.0.1
+        with:
+          ref: ${{ inputs.ref }}
+      - uses: actions/download-artifact@v6.0.0
+        with:
+          name: packages_${{ inputs.ref }}
+      - uses: ./actions/instrument/job
+        with:
+          cache: 'false'
+        env:
+          OTEL_SHELL_CONFIG_GITHUB_INJECT_ON_MAIN: 'TRUE'
+          OTEL_SHELL_SDK_OUTPUT_REDIRECT: /dev/null
+  job-copilot-deferred-export:
+    needs: job-smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@v5.0.1
+        with:
+          ref: ${{ inputs.ref }}
+      - uses: actions/download-artifact@v6.0.0
+        with:
+          name: packages_${{ inputs.ref }}
+      - uses: ./actions/instrument/job
+        with:
+          cache: 'false'
+        env:
+          GITHUB_WORKFLOW: 'Copilot coding agent'
+          GITHUB_JOB: 'copilot'
+          GITHUB_EVENT_NAME: 'dynamic'
+          OTEL_SHELL_CONFIG_GITHUB_INJECT_ON_MAIN: 'TRUE'
+          OTEL_SHELL_SDK_OUTPUT_REDIRECT: /dev/null
+      - run: echo "hello world"
+  job-node:
+    needs: job-smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@v5.0.1
+        with:
+          ref: ${{ inputs.ref }}
+      - uses: actions/download-artifact@v6.0.0
+        with:
+          name: packages_${{ inputs.ref }}
+      - uses: ./actions/instrument/job
+        with:
+          cache: 'false'
+        env:
+          OTEL_SHELL_CONFIG_GITHUB_INJECT_ON_MAIN: 'TRUE'
+          OTEL_SHELL_SDK_OUTPUT_REDIRECT: /dev/null
+      - uses: actions/download-artifact@v6 # check if node action works
+        with:
+          name: packages_${{ inputs.ref }}
+  job-docker:
+    needs: job-smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@v5.0.1
+        with:
+          ref: ${{ inputs.ref }}
+      - uses: actions/download-artifact@v6.0.0
+        with:
+          name: packages_${{ inputs.ref }}
+      - uses: ./actions/instrument/job
+        with:
+          cache: 'false'
+        env:
+          OTEL_SHELL_CONFIG_GITHUB_INJECT_ON_MAIN: 'TRUE'
+          OTEL_SHELL_SDK_OUTPUT_REDIRECT: /dev/null
+      - uses: actions/hello-world-docker-action@main # check if docker action works
+      - uses: docker/setup-qemu-action@v3.7.0 # some docker actions have otel built-in
+      - uses: docker/setup-buildx-action@v3.11.1 # some docker actions have otel built-in
+      - uses: actions/download-artifact@v6.0.0
+        with:
+          name: packages_${{ inputs.ref }}
+      - run: cp package.deb tests/package.deb
+      - uses: docker/build-push-action@v6.18.0 # some docker actions have otel built-in
+        with:
+          context: ./tests/
+          tags: test
+          push: false
+          build-args: |
+            image=ubuntu:latest
+            update=TRUE
+            shell=bash
+  job-run:
+    needs: job-smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@v5.0.1
+        with:
+          ref: ${{ inputs.ref }}
+      - uses: actions/download-artifact@v6.0.0
+        with:
+          name: packages_${{ inputs.ref }}
+      - uses: ./actions/instrument/job
+        with:
+          cache: 'false'
+        env:
+          OTEL_SHELL_CONFIG_GITHUB_INJECT_ON_MAIN: 'TRUE'
+          OTEL_SHELL_SDK_OUTPUT_REDIRECT: /dev/null
+      - run: sudo apt-get update # check if command fails
+      - run: nohup sleep $((60 * 60 * 2)) 1> /dev/null 2> /dev/null &
+      - run: | # check if install succeeded
+          type otel.sh && type strace
+      - run: | # check if instrumentation happened
+          [ "$(alias | grep '_otel_observe' | wc -l)" -gt 0 ]
+      - run: | # check if traceparent is injected
+          [ -n "$TRACEPARENT" ]
+  job-composite:
+    needs: job-smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@v5.0.1
+        with:
+          ref: ${{ inputs.ref }}
+      - uses: actions/download-artifact@v6.0.0
+        with:
+          name: packages_${{ inputs.ref }}
+      - uses: ./actions/instrument/job
+        with:
+          cache: 'false'
+        env:
+          OTEL_SHELL_CONFIG_GITHUB_INJECT_ON_MAIN: 'TRUE'
+          OTEL_SHELL_SDK_OUTPUT_REDIRECT: /dev/null
+      - uses: plengauer/autoversion@v2.1.0
+        with:
+          github_token: ${{ github.token }}
+          path_exclude: ./
+          working_directory: ./autoversion
+          dry_run: 'true'
+  job-integration:
+    needs: job-smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@v5.0.1
+        with:
+          ref: ${{ inputs.ref }}
+      - uses: actions/download-artifact@v6.0.0
+        with:
+          name: packages_${{ inputs.ref }}
+      - uses: ./actions/instrument/job
+        with:
+          cache: 'false'
+        env:
+          OTEL_SHELL_CONFIG_GITHUB_INJECT_ON_MAIN: 'TRUE'
+          OTEL_SHELL_SDK_OUTPUT_REDIRECT: /dev/null
+      - uses: renovatebot/github-action@v44.0.4 # node action with call to docker, docker flags that make injection more complicated, then call a node script via exec that already is injected with otel
+        env:
+          RENOVATE_DRY_RUN: full
+          RENOVATE_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RENOVATE_REPOSITORIES: ${{ github.repository }}
+          LOG_LEVEL: debug
+      - uses: github/codeql-action/init@v4.31.4 # node action will call java will call node
+        with:
+          languages: javascript-typescript
+          build-mode: none
+      - uses: github/codeql-action/analyze@v4.31.4 # node action will call java will call node
+        with:
+          category: "/language:javascript-typescript"
+          upload: never
+      - uses: github/codeql-action/init@v4.31.4
+        with:
+          languages: python
+          build-mode: none
+      - uses: github/codeql-action/analyze@v4.31.4 # node action will call java will call python
+        with:
+          category: "/language:python"
+          upload: never
+      - run: |
+          # initializing a python venv because venv have a lot of corner cases about injection, users, file permissions, changing paths and on-the-fly instrumentation
+          python3 -m venv venv
+          . venv/bin/activate
+          pip3 install -r src/usr/share/opentelemetry_shell/agent.instrumentation.python/requirements.txt
+          deactivate
+  job-io-1:
+    needs: job-smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      foo: ${{ steps.my-step.outputs.foo }}
+    steps:
+      - uses: actions/checkout@v5.0.1
+        with:
+          ref: ${{ inputs.ref }}
+      - uses: actions/download-artifact@v6.0.0
+        with:
+          name: packages_${{ inputs.ref }}
+      - uses: ./actions/instrument/job
+        env:
+          OTEL_SHELL_CONFIG_GITHUB_INJECT_ON_MAIN: 'TRUE'
+          OTEL_SHELL_SDK_OUTPUT_REDIRECT: /dev/null
+      - run: echo foo=bar >> "$GITHUB_OUTPUT"
+        id: my-step
+      - run: |
+          [ ${{ steps.my-step.outputs.foo }} = bar ]
+  job-io-2:
+    needs: job-io-1
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@v5.0.1
+        with:
+          ref: ${{ inputs.ref }}
+      - uses: actions/download-artifact@v6.0.0
+        with:
+          name: packages_${{ inputs.ref }}
+      - uses: ./actions/instrument/job
+        env:
+          OTEL_SHELL_CONFIG_GITHUB_INJECT_ON_MAIN: 'TRUE'
+          OTEL_SHELL_SDK_OUTPUT_REDIRECT: /dev/null
+      - run: |
+          [ ${{ needs.job-io-1.outputs.foo }} = bar ]
+  job-background:
+    needs: job-smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@v5.0.1
+        with:
+          ref: ${{ inputs.ref }}
+      - uses: actions/download-artifact@v6.0.0
+        with:
+          name: packages_${{ inputs.ref }}
+      - uses: ./actions/instrument/job
+        with:
+          cache: 'false'
+        env:
+          OTEL_SHELL_CONFIG_GITHUB_INJECT_ON_MAIN: 'TRUE'
+          OTEL_SHELL_SDK_OUTPUT_REDIRECT: /dev/null
+      - run: |
+          ( { echo foo; sleep $((60 * 60 * 60)); echo bar; } ) &
+  job-background-indirect:
+    needs: job-smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@v5.0.1
+      - uses: actions/download-artifact@v6.0.0
+        with:
+          name: packages_${{ inputs.ref }}
+      - uses: ./actions/instrument/job
+        with:
+          cache: 'false'
+        env:
+          OTEL_SHELL_CONFIG_GITHUB_INJECT_ON_MAIN: 'TRUE'
+          OTEL_SHELL_SDK_OUTPUT_REDIRECT: /dev/null
+      - run: |
+          echo '( { echo foo; sleep $((60 * 60 * 60)); echo bar; } ) &' > start_background.sh
+          sh ./start_background.sh
+  job-cache:
+    needs: job-smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      matrix:
+        cache: ['false', 'true']
+      fail-fast: false
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@v5.0.1
+        with:
+          ref: ${{ inputs.ref }}
+      - uses: actions/download-artifact@v6.0.0
+        with:
+          name: packages_${{ inputs.ref }}
+      - uses: ./actions/instrument/job
+        with:
+          cache: ${{ matrix.cache }}
+        env:
+          OTEL_SHELL_CONFIG_GITHUB_INJECT_ON_MAIN: 'TRUE'
+          OTEL_SHELL_SDK_OUTPUT_REDIRECT: /dev/null
+      - run: echo hello world
+  job-exporter-local:
+    needs: job-smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@v5.0.1
+        with:
+          ref: ${{ inputs.ref }}
+      - uses: actions/download-artifact@v6.0.0
+        with:
+          name: packages_${{ inputs.ref }}
+      - run: |
+          nohup node -e "require('http').createServer(function (req, res) { console.log(req.method, req.url); res.writeHead(200); res.end(); }).listen(8080);" 1> /tmp/http.log 2> /dev/null &
+      - uses: ./actions/instrument/job
+        with:
+          cache: 'false'
+          secrets_to_redact: '{"github.token": "${{ github.token }}", "url": "https://example.com/foo/bar", "regex": "[a-zA-Z]*"}'
+        env:
+          OTEL_LOGS_EXPORTER: otlp
+          OTEL_METRICS_EXPORTER: otlp
+          OTEL_TRACES_EXPORTER: otlp
+          OTEL_EXPORTER_OTLP_LOGS_ENDPOINT: http://localhost:8080/v1/logs
+          OTEL_EXPORTER_OTLP_METRICS_ENDPOINT: http://localhost:8080/v1/metrics
+          OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: http://localhost:8080/v1/traces
+          OTEL_SHELL_CONFIG_GITHUB_INJECT_ON_MAIN: 'TRUE'
+          OTEL_SHELL_SDK_OUTPUT_REDIRECT: /dev/null
+      - run: echo hello world >&2
+      - run: sleep 60
+      - run: cat /tmp/http.log | sort -u
+      - run: cat /tmp/http.log | grep -q '^POST /v1/logs$'
+      - run: cat /tmp/http.log | grep -q '^POST /v1/metrics$'
+      - run: cat /tmp/http.log | grep -q '^POST /v1/traces$'
+  job-exporter-global:
+    needs: job-smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      matrix:
+        exporter_logs: ['otlp', 'console']
+        exporter_metrics: ['otlp', 'console']
+        exporter_traces: ['otlp', 'console']
+        protocol: ['http/protobuf', 'http/json']
+      fail-fast: false
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@v5.0.1
+        with:
+          ref: ${{ inputs.ref }}
+      - uses: actions/download-artifact@v6
+        with:
+          name: packages_${{ inputs.ref }}
+      - run: |
+          nohup node -e "require('http').createServer(function (req, res) { console.log(req.method, req.url); res.writeHead(200); res.end(); }).listen(8080);" 1> /tmp/http.log 2> /dev/null &
+      - uses: ./actions/instrument/job
+        with:
+          cache: 'false'
+          secrets_to_redact: '{"github.token": "${{ github.token }}", "url": "https://example.com/foo/bar", "regex": "[a-zA-Z]*"}'
+        env:
+          OTEL_LOGS_EXPORTER: ${{ matrix.exporter_logs }}
+          OTEL_METRICS_EXPORTER: ${{ matrix.exporter_metrics }}
+          OTEL_TRACES_EXPORTER: ${{ matrix.exporter_traces }}
+          OTEL_EXPORTER_OTLP_PROTOCOL: ${{ matrix.protocol }}
+          OTEL_EXPORTER_OTLP_ENDPOINT: http://localhost:8080
+          OTEL_SHELL_CONFIG_GITHUB_INJECT_ON_MAIN: 'TRUE'
+          OTEL_SHELL_SDK_OUTPUT_REDIRECT: /dev/null
+      - run: echo hello world >&2
+      - run: sleep 60
+      - run: cat /tmp/http.log | sort -u
+      - run: cat /tmp/http.log | grep -q '^POST /v1/logs$'
+        if: ${{ matrix.exporter_logs == 'otlp' }}
+      - run: cat /tmp/http.log | grep -q '^POST /v1/metrics$'
+        if: ${{ matrix.exporter_metrics == 'otlp' }}
+      - run: cat /tmp/http.log | grep -q '^POST /v1/traces$'
+        if: ${{ matrix.exporter_traces == 'otlp' }}
+  job-permissions-restricted:
+    needs: job-smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions: # according to https://docs.github.com/en/actions/security-for-github-actions/security-guides/automatic-token-authentication
+      actions: read
+      attestations: none
+      checks: none
+      contents: read
+      deployments: none
+      discussions: none
+      id-token: none
+      issues: none
+      # models: none
+      packages: read
+      pages: none
+      pull-requests: none
+      security-events: none
+      statuses: none
+    steps:
+      - uses: actions/checkout@v5.0.1
+        with:
+          ref: ${{ inputs.ref }}
+      - uses: actions/download-artifact@v6.0.0
+        with:
+          name: packages_${{ inputs.ref }}
+      - uses: ./actions/instrument/job
+        env:
+          OTEL_SHELL_CONFIG_GITHUB_INJECT_ON_MAIN: 'TRUE'
+          OTEL_SHELL_SDK_OUTPUT_REDIRECT: /dev/null
+      - run: echo hello world >&2
+  job-selfmonitoring:
+    needs: job-smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      matrix:
+        self_monitoring: ['false', 'true', 'auto']
+        self_monitoring_anonymize: ['false', 'true', 'auto']
+      fail-fast: false
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@v5.0.1
+        with:
+          ref: ${{ inputs.ref }}
+      - uses: actions/download-artifact@v6.0.0
+        with:
+          name: packages_${{ inputs.ref }}
+      - run: |
+          nohup node -e "require('http').createServer(function (req, res) { console.log(req.method, req.url); res.writeHead(200); res.end(); }).listen(8080);" 1> /tmp/http.log 2> /dev/null &
+      - uses: ./actions/instrument/job
+        with:
+          cache: 'false'
+          self_monitoring: ${{ matrix.self_monitoring }}
+          self_monitoring_anonymize: ${{ matrix.self_monitoring_anonymize }}
+        env:
+          OTEL_EXPORTER_OTLP_ENDPOINT: http://localhost:8080
+          OTEL_SHELL_CONFIG_GITHUB_INJECT_ON_MAIN: 'TRUE'
+          OTEL_SHELL_SDK_OUTPUT_REDIRECT: /dev/null
+      - run: echo hello world
+  job-windows:
+    needs: job-smoke
+    runs-on: windows-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@v5.0.1
+        with:
+          ref: ${{ inputs.ref }}
+      - uses: ./actions/instrument/job
+      - run: echo hello world
+  job-macos:
+    needs: job-smoke
+    runs-on: macos-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@v5.0.1
+        with:
+          ref: ${{ inputs.ref }}
+      - uses: ./actions/instrument/job
+      - run: echo hello world
+  workflow-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@v5.0.1
+        with:
+          ref: ${{ inputs.ref }}
+      - uses: actions/download-artifact@v6.0.0
+        with:
+          name: packages_${{ inputs.ref }}
+      - id: workflow_run
+        run: |
+          curl -L --no-progress-meter --fail --retry 16 -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" "${GITHUB_API_URL:-https://api.github.com}"/repos/"$GITHUB_REPOSITORY"/actions/workflows'?per_page=100&page=1' | jq --unbuffered -r '.workflows[] | select(.name == "Workflow Example") | .id' \
+            | xargs -I {} curl -L --no-progress-meter --fail --retry 16 -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" "${GITHUB_API_URL:-https://api.github.com}"/repos/"$GITHUB_REPOSITORY"/actions/workflows/'{}'/runs'?status=success&branch=main&per_page=1&page=1' \
+            | jq --unbuffered -r '.workflow_runs[] | [ .id, .run_attempt ] | @tsv' | sed 's/\t/ /g' | {
+              read -r id run_attempt
+              echo "id=$id" >> "$GITHUB_OUTPUT"
+              echo "run_attempt=$run_attempt" >> "$GITHUB_OUTPUT"
+            }
+      - run: |
+          [ -n "${{ steps.workflow_run.outputs.id }}" ]
+          [ -n "${{ steps.workflow_run.outputs.run_attempt }}" ]
+      - uses: ./actions/instrument/workflow
+        with:
+          workflow_run_id: ${{ steps.workflow_run.outputs.id }}
+          workflow_run_attempt: ${{ steps.workflow_run.outputs.run_attempt }}
+          cache: false
+        env:
+          OTEL_METRICS_EXPORTER: console
+          OTEL_LOGS_EXPORTER: console
+          OTEL_TRACES_EXPORTER: console
+          OTEL_SHELL_SDK_OUTPUT_REDIRECT: /dev/null
+  workflow:
+    needs: workflow-smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    strategy:
+      matrix:
+        self_monitoring: ['false', 'true', 'auto']
+        self_monitoring_anonymize: ['false', 'true', 'auto']
+      fail-fast: false
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - id: filename
+        run: echo "otlp=$(mktemp)" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v5.0.1
+        with:
+          ref: ${{ inputs.ref }}
+      - uses: actions/download-artifact@v6.0.0
+        with:
+          name: packages_${{ inputs.ref }}
+      - id: workflow_run
+        run: |
+          curl -L --no-progress-meter --fail --retry 16 -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" "${GITHUB_API_URL:-https://api.github.com}"/repos/"$GITHUB_REPOSITORY"/actions/workflows'?per_page=100&page=1' | jq --unbuffered -r '.workflows[] | select(.name == "Workflow Example") | .id' \
+            | xargs -I {} curl -L --no-progress-meter --fail --retry 16 -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" "${GITHUB_API_URL:-https://api.github.com}"/repos/"$GITHUB_REPOSITORY"/actions/workflows/'{}'/runs'?status=success&branch=main&per_page=1&page=1' \
+            | jq --unbuffered -r '.workflow_runs[] | [ .id, .run_attempt ] | @tsv' | sed 's/\t/ /g' | {
+              read -r id run_attempt
+              echo "id=$id" >> "$GITHUB_OUTPUT"
+              echo "run_attempt=$run_attempt" >> "$GITHUB_OUTPUT"
+            }
+      - run: |
+          [ -n "${{ steps.workflow_run.outputs.id }}" ]
+          [ -n "${{ steps.workflow_run.outputs.run_attempt }}" ]
+      - uses: ./actions/instrument/workflow
+        with:
+          debug: 1
+          workflow_run_id: ${{ steps.workflow_run.outputs.id }}
+          workflow_run_attempt: ${{ steps.workflow_run.outputs.run_attempt }}
+          self_monitoring: ${{ matrix.self_monitoring }}
+          self_monitoring_anonymize: ${{ matrix.self_monitoring_anonymize }}
+          cache: false
+        env:
+          OTEL_METRICS_EXPORTER: console
+          OTEL_LOGS_EXPORTER: console
+          OTEL_TRACES_EXPORTER: console
+          OTEL_SHELL_SDK_OUTPUT_REDIRECT: '${{ steps.filename.outputs.otlp }}'
+      - run: |
+          . ./actions/instrument/shared/github.sh
+          INPUT_GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }} gh_artifact_download '${{ steps.workflow_run.outputs.id }}' '${{ steps.workflow_run.outputs.run_attempt }}' 'opentelemetry_workflow_run_${{ steps.workflow_run.outputs.run_attempt }}' .
+      - env:
+          OTLP_JSON: '${{ steps.filename.outputs.otlp }}'
+        run: |
+          [ "$(cat "$OTLP_JSON" | jq -r .context.trace_id | grep -v '^null$' | sort -u | cut -d x -f 2 | tee /dev/stderr)" = "$(cat traceparent | cut -d - -f 2 | tee /dev/stderr)" ]
+          cat "$OTLP_JSON" | jq -r .name | grep -v '^null$' | sort -u | grep 'test (foo)'
+          cat "$OTLP_JSON" | jq -r .name | grep -v '^null$' | sort -u | grep 'test (bar)'
+          cat "$OTLP_JSON" | jq -r .name | grep -v '^null$' | sort -u | grep 'test (baz)'
+          cat "$OTLP_JSON" | jq -r .name | grep -v '^null$' | sort -u | grep 'publish'
+          cat "$OTLP_JSON" | jq -r .name | grep -v '^null$' | sort -u | grep 'Set up job'
+          cat "$OTLP_JSON" | jq -r .name | grep -v '^null$' | sort -u | grep 'Complete job'
+          # cat "$OTLP_JSON" | jq -r .body | grep -v '^null$' | sort -u | grep 'Cleaning up orphan processes'
+  deploy-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      actions: read
+    steps:
+      - uses: actions/checkout@v5.0.1
+        with:
+          ref: ${{ inputs.ref }}
+      - uses: ./actions/instrument/deploy
+        with:
+          debug: 1
+          dry_run: true
+          action_repository: '.'
+          __repository_level_instrumentation_file_name_override: '.github/workflows/test_github.yml'
+        env:
+          OTEL_METRICS_EXPORTER: console
+          OTEL_LOGS_EXPORTER: console
+          OTEL_TRACES_EXPORTER: console
+          OTEL_SHELL_SDK_OUTPUT_REDIRECT: /dev/null
+  deploy:
+    if: ${{ !github.event.repository.fork }}
+    needs: deploy-smoke
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+    strategy:
+      matrix:
+        secret_redaction_strategy: ['none', 'list', 'all']
+        private: [ 'false' ]
+      fail-fast: false
+    env:
+      REPOSITORY_TEMPLATE: thoth-deploy-test-repository-${{ matrix.private  }}-${{ matrix.secret_redaction_strategy }}
+      ASSERT_RECEIVING_DATA: 'false'
+    steps:
+      - uses: plengauer/opentelemetry-github/actions/instrument/job@v5.36.0
+        with:
+          secrets_to_redact: '["${{ github.token }}","${{ secrets.ACTIONS_GITHUB_TOKEN }}","${{ secrets.TEST_GITHUB_TOKEN }}"]'
+        env:
+          OTEL_EXPORTER_OTLP_ENDPOINT: '${{ secrets.OTEL_EXPORTER_OTLP_ENDPOINT }}'
+          OTEL_EXPORTER_OTLP_HEADERS: '${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}'
+      - id: config
+        run: |
+          curl -L -H "Authorization: Bearer ${{ secrets.TEST_GITHUB_TOKEN }}" "${GITHUB_API_URL:-https://api.github.com}"/user | jq -r .login | xargs -I '{}' echo "user={}" >> "$GITHUB_OUTPUT"
+          echo repository="$(echo "${{ env.REPOSITORY_TEMPLATE }}"-"${{ github.workflow }}"-"${{ github.ref_name }}" | tr / - | cut -c -100)" >> "$GITHUB_OUTPUT"
+      - run: |
+          curl -L -H "Authorization: Bearer ${{ secrets.TEST_GITHUB_TOKEN }}" -X DELETE "${GITHUB_API_URL:-https://api.github.com}"/repos/${{ steps.config.outputs.user }}/${{ steps.config.outputs.repository }} || true
+      - run: |
+          curl -L -H "Authorization: Bearer ${{ secrets.TEST_GITHUB_TOKEN }}" "${GITHUB_API_URL:-https://api.github.com}"/user/repos -d '{"name":"${{ steps.config.outputs.repository }}","private":${{ matrix.private }},"auto_init":true}'
+      - uses: actions/checkout@v5.0.1
+        with:
+          repository: "${{ steps.config.outputs.user }}/${{ steps.config.outputs.repository }}"
+          token: ${{ secrets.TEST_GITHUB_TOKEN }}
+      - run: |
+          git config --global user.email ${{ steps.config.outputs.user }}@github.com
+          git config --global user.name ${{ steps.config.outputs.user }}
+      - run: |
+          mkdir -p .github/workflows
+          echo '
+          name: Test
+          
+          on:
+            push:
+
+          jobs:
+          
+            hello-world:
+              runs-on: ubuntu-latest
+              steps:
+                - run: echo hello world
+          ' >> .github/workflows/test.yml
+          git add . && git commit --message "added workflow" && git push
+      - if: ${{ env.ASSERT_RECEIVING_DATA == 'true' }}
+        run: |
+          nohup node -e "require('http').createServer(function (req, res) { console.log(req.method, req.url); res.writeHead(200); res.end(); }).listen(8080);" 1> /tmp/http.log 2> /dev/null &
+      - run: |
+          printf '%s' '${{ secrets.TEST_GITHUB_TOKEN }}' | GH_TOKEN='${{ secrets.TEST_GITHUB_TOKEN }}' gh secret set DEPLOY_OBSERVABILITY_TOKEN --repo ${{ steps.config.outputs.user }}/${{ steps.config.outputs.repository }}
+          wget --header "Authorization: Bearer ${{ secrets.ACTIONS_GITHUB_TOKEN }}" https://raw.githubusercontent.com/${{ github.repository }}/${{ github.sha }}/README.md -O - | sed -n '/```yaml/,/```/p' | grep -v '```yaml' | sed '/```/,$d' > .github/workflows/deploy_otel.yml
+          cat .github/workflows/deploy_otel.yml | yq .jobs.deploy.steps[0].uses | grep -q '/actions/instrument/deploy@'
+          cat .github/workflows/deploy_otel.yml | yq .jobs.deploy.steps[0].with.github_token | grep -q secrets.DEPLOY_OBSERVABILITY_TOKEN
+          yq -i 'del(.jobs.deploy.steps[0].env)' .github/workflows/deploy_otel.yml
+          yq -i '.jobs.deploy.steps[0].uses = "${{ github.repository }}/actions/instrument/deploy@${{ inputs.ref }}"' .github/workflows/deploy_otel.yml
+          yq -i '.jobs.deploy.steps[0].with.job_level_instrumentation_secret_redaction_strategy = "${{ matrix.secret_redaction_strategy }}"' .github/workflows/deploy_otel.yml
+          yq -i '.jobs.deploy.steps[0].env.OTEL_EXPORTER_OTLP_ENDPOINT = "http://'"$(curl 'https://api.ipify.org?format=json' | jq -r .ip)"':8080"' .github/workflows/deploy_otel.yml
+          git add . && git commit --message "added deploy action" && git push
+      - run: |
+          while ! cat .github/workflows/test.yml | yq '.jobs.hello-world.steps[].uses' | grep -q '/actions/instrument/job@' || ! cat .github/workflows/observability.yml | yq '.jobs.export.steps[].uses' | grep -q '/actions/instrument/workflow@'; do
+            sleep 10 && git pull
+          done
+      - run: |
+          case "${{ matrix.secret_redaction_strategy }}" in
+            none) cat .github/workflows/test.yml | yq '.jobs.*.steps[] | select(.uses == "*/actions/instrument/job@*") | .with.secrets_to_redact' | sort -u | grep -q null;;
+            list|all) ! cat .github/workflows/test.yml | yq '.jobs.*.steps[] | select(.uses == "*/actions/instrument/job@*") | .with.secrets_to_redact' | sort -u | grep -q null;;
+            *) false;;
+          esac
+      - if: ${{ env.ASSERT_RECEIVING_DATA == 'true' }}
+        run: cat /tmp/http.log | grep -q '^POST /v1/logs$'
+      - if: ${{ env.ASSERT_RECEIVING_DATA == 'true' }}
+        run: cat /tmp/http.log | grep -q '^POST /v1/metrics$'
+      - if: ${{ env.ASSERT_RECEIVING_DATA == 'true' }}
+        run: cat /tmp/http.log | grep -q '^POST /v1/traces$'
+      - run: |
+          curl -L -H "Authorization: Bearer ${{ secrets.TEST_GITHUB_TOKEN }}" -X DELETE "${GITHUB_API_URL:-https://api.github.com}"/repos/${{ steps.config.outputs.user }}/"${{ steps.config.outputs.repository }}" || true

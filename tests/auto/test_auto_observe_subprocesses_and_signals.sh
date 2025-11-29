@@ -1,0 +1,37 @@
+if ! type strace; then exit 0; fi
+if [ -n "${WSL_DISTRO_NAME:-}" ]; then exit 0; fi
+
+. ./assert.sh
+export OTEL_SHELL_CONFIG_OBSERVE_SUBPROCESSES=TRUE
+export OTEL_SHELL_CONFIG_OBSERVE_SIGNALS=TRUE
+. otel.sh
+
+if \type apt-get; then
+  command="sudo apt-get update"
+elif \type dnf; then
+  command="sudo dnf -y upgrade"
+elif \type zypper; then
+  command="sudo zypper --non-interactive update"
+else
+  exit 0
+fi
+
+eval "$command"
+
+resolve_span '.name == "'"$command"'"'
+
+assert_equals 0 "$(\cat "$OTEL_EXPORT_LOCATION" | \jq '. | select(.name != null) | .events[] | select(.name | startswith("SIG") | not) | .name' | \wc -l)"
+assert_equals 0 "$(\cat "$OTEL_EXPORT_LOCATION" | \jq '. | select(.name != null) | select(.name | contains("execve(")) | .name' | \wc -l)"
+\cat "$OTEL_EXPORT_LOCATION" | \jq -r '. | select(.name != null) | .name' | \cut -d ' ' -f 1 | while \read -r my_command; do
+  assert_not_equals "" "$(\which "$my_command")"
+done
+
+\cat "$OTEL_EXPORT_LOCATION" | \jq -r '. | select(.name != null) | .context.span_id' | while \read -r span_id; do
+  if \[ -z "$span_id" ]; then continue; fi
+  span="$(\cat "$OTEL_EXPORT_LOCATION" | \jq '. | select(.context.span_id == "'"$span_id"'")')"
+  while \[ -n "$span" ] && \[ "$(\printf '%s' "$span" | \jq -r '.name')" != "$command" ]; do
+    span_id="$(\printf '%s' "$span" | \jq -r '.parent_id')"
+    span="$(\cat "$OTEL_EXPORT_LOCATION" | \jq '. | select(.context.span_id == "'"$span_id"'")')"
+  done
+  \[ -n "$span" ] || (\echo FAILED && \echo "FAILED tracing $span_id" >&2)
+done | \grep 'FAILED' && exit 1 || exit 0

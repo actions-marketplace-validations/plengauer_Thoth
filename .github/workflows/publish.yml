@@ -1,0 +1,160 @@
+name: Publish
+
+on:
+  push:
+    paths: VERSION
+    branches:
+      - main
+      - 'release/v*.*'
+
+jobs:
+
+  setup:
+    runs-on: ubuntu-latest
+    outputs:
+      refs: ${{ steps.dynamic.outputs.refs }}
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v5.0.1
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+      - id: dynamic
+        run: |
+          cat '${{ github.event_path }}' | jq '.commits[].id' -r | while read -r ref; do
+            if git diff-tree --root --no-commit-id --name-only -r "$ref" | grep -qE '^VERSION$' || ( git tag --points-at "$ref" | grep -qE '^v' && ! curl -s --fail -H "Authorization: Bearer ${{ github.token }}" "${GITHUB_API_URL:-https://api.github.com}"/repos/"$GITHUB_REPOSITORY"/releases/tags/"$(git tag --points-at "$ref")" ); then
+              echo "$ref"
+            fi
+          done | while read -r ref; do echo \""$ref"\"; done | jq -s | tr -d '\n' | tr -d ' ' | xargs -0 -I {} echo 'refs={}' >> "$GITHUB_OUTPUT"
+  
+  test:
+    needs: setup
+    strategy:
+      matrix:
+        ref: ${{ fromJSON(needs.setup.outputs.refs) }}
+    permissions:
+      actions: write
+      attestations: none
+      checks: none
+      contents: read
+      deployments: none
+      discussions: none
+      id-token: none
+      issues: none
+      models: none
+      packages: read
+      pages: none
+      pull-requests: none
+      security-events: none
+      statuses: none
+    secrets: inherit
+    uses: ./.github/workflows/test.yml
+    with:
+      ref: ${{ matrix.ref }}
+    
+  publish:
+    needs: [ setup, test ]
+    strategy:
+      matrix:
+        ref: ${{ fromJSON(needs.setup.outputs.refs) }}
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: write
+      id-token: write
+      attestations: write
+    steps:
+      - uses: plengauer/opentelemetry-github/actions/instrument/job@v5.36.0
+        with:
+          secrets_to_redact: '["${{ github.token }}","${{ secrets.ACTIONS_GITHUB_TOKEN }}"]'
+        env:
+          OTEL_EXPORTER_OTLP_ENDPOINT: '${{ secrets.OTEL_EXPORTER_OTLP_ENDPOINT }}'
+          OTEL_EXPORTER_OTLP_HEADERS: '${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}'
+      - uses: actions/checkout@v5.0.1
+        with:
+          token: ${{ secrets.ACTIONS_GITHUB_TOKEN }} # need to use this token for later pushes of tags
+          ref: ${{ matrix.ref }}
+      - run: echo "version=$(cat VERSION)" >> "$GITHUB_OUTPUT"
+        id: version
+      - uses: actions/download-artifact@v6.0.0
+        with:
+          name: packages_${{ matrix.ref }}
+      - uses: actions/attest-build-provenance@v3.0.0
+        with:
+          subject-path: ./package.deb
+          subject-name: opentelemetry-shell_${{ steps.version.outputs.version }}.deb
+      - uses: actions/attest-build-provenance@v3.0.0
+        with:
+          subject-path: ./package.rpm
+          subject-name: opentelemetry-shell_${{ steps.version.outputs.version }}.rpm
+      - uses: actions/attest-build-provenance@v3.0.0
+        with:
+          subject-path: ./package.apk
+          subject-name: opentelemetry-shell_${{ steps.version.outputs.version }}.apk
+      - uses: actions/download-artifact@v6.0.0
+        with:
+          name: images_${{ matrix.ref }}
+      - run: |
+          echo ${{ secrets.ACTIONS_GITHUB_TOKEN }} | sudo docker login ghcr.io -u "$(GH_TOKEN=${{ secrets.ACTIONS_GITHUB_TOKEN }} gh api user -q .login)" --password-stdin
+          find . -iname '*.image' | while read -r image_file; do
+            image_name="$image_file"
+            image_name="${image_name#./}"
+            image_name="${image_name%.image}"
+            tag=ghcr.io/"${GITHUB_REPOSITORY%/*}"/"$image_name":v${{ steps.version.outputs.version }}
+            sudo docker load < "$image_file"
+            sudo docker image tag "$image_name" "$tag"
+            sudo docker push "$tag"
+          done
+      - run: |
+          gh release create "v${{ steps.version.outputs.version }}" \
+            --title "Release v${{ steps.version.outputs.version }}" \
+            --generate-notes \
+            --draft
+          sleep 60 # let API catch up
+          echo "id=$(gh api repos/${{ github.repository }}/releases | jq '.[] | select(.tag_name == "v${{ steps.version.outputs.version }}") | .id' -r)" >> "$GITHUB_OUTPUT"
+          echo "upload_url=$(gh api repos/${{ github.repository }}/releases | jq '.[] | select(.tag_name == "v${{ steps.version.outputs.version }}") | .upload_url' -r)" >> "$GITHUB_OUTPUT"
+        id: create_release
+        env:
+          GH_TOKEN: ${{ secrets.ACTIONS_GITHUB_TOKEN }}
+      - uses: actions/upload-release-asset@v1.0.2
+        env:
+          GITHUB_TOKEN: ${{ secrets.ACTIONS_GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./package.deb
+          asset_name: opentelemetry-shell_${{ steps.version.outputs.version }}.deb
+          asset_content_type: application/octet-stream
+      - uses: actions/upload-release-asset@v1.0.2
+        env:
+          GITHUB_TOKEN: ${{ secrets.ACTIONS_GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./package.rpm
+          asset_name: opentelemetry-shell_${{ steps.version.outputs.version }}.rpm
+          asset_content_type: application/octet-stream
+      - uses: actions/upload-release-asset@v1.0.2
+        env:
+          GITHUB_TOKEN: ${{ secrets.ACTIONS_GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./package.apk
+          asset_name: opentelemetry-shell_${{ steps.version.outputs.version }}.apk
+          asset_content_type: application/octet-stream
+      - uses: eregon/publish-release@v1.0.6
+        env:
+          GITHUB_TOKEN: ${{ secrets.ACTIONS_GITHUB_TOKEN }}
+        with:
+          release_id: ${{ steps.create_release.outputs.id }}
+      - id: version_parts
+        run: |
+          version="${{ steps.version.outputs.version }}"
+          major=$(echo "$version" | cut -d. -f1)
+          minor=$(echo "$version" | cut -d. -f2)
+          echo "major=$major" >> "$GITHUB_OUTPUT"
+          echo "minor=$minor" >> "$GITHUB_OUTPUT"
+          echo "major_minor=$major.$minor" >> "$GITHUB_OUTPUT"
+      - run: |
+          git tag -f "v${{ steps.version_parts.outputs.major_minor }}"
+          git tag -f "v${{ steps.version_parts.outputs.major }}"
+          git push -f origin "v${{ steps.version_parts.outputs.major_minor }}" "v${{ steps.version_parts.outputs.major }}"

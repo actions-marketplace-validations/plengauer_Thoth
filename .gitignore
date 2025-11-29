@@ -1,4 +1,7 @@
 *.deb
+*.apk
+*.rpm
 wget-log*
 tests/source_exec.shell
 .lock
+__pycache__/

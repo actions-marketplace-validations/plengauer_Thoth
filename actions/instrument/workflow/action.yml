@@ -1,0 +1,33 @@
+name: 'OpenTelemetry Workflow'
+description: 'Observe Github Workflows with OpenTelemetry'
+branding:
+  icon: 'activity'
+  color: 'blue'
+inputs:
+  github_token:
+    description: 'A GitHub token for API access (read-only)'
+    default: '${{ github.token }}'
+  cache:
+    description: 'Whether to use GitHub Actions Cache to cache dependencies'
+    default: true
+  workflow_run_id:
+    description: 'The workflow run to observe (id)'
+    default: ${{ github.event.workflow_run.id }}
+  workflow_run_attempt:
+    description: 'The workflow run to observe (attempt)'
+    default: ${{ github.event.workflow_run.run_attempt }}
+  self_monitoring:
+    description: 'Whether to send usage statistics (invocation counts, feature usages) to the maintainer. No data of the workflow itself will be collected. Possible values are true, false, and auto (true for repositories on GitHub SaaS, false for private GitHub servers).'
+    default: auto
+  self_monitoring_anonymize:
+    description: 'Whether to strip self monitoring data of any identifiable information. Possible values are true, false, and auto (false for public repository on GitHub SaaS, true for private GitHub servers and private repositories).'
+    default: true
+  debug:
+    description: 'Enable debug logging'
+    default: '${{ runner.debug }}'
+  __kill_switch:
+    description: 'INTERNAL ONLY - DO NOT SET MANUALLY' # 'Set OTEL_GITHUB_KILL_SWITCH variable for the repository or organization to any non-empty value to disable all monitoring in case of an emergency. DO NOT SET MANUALLY.'
+    default: '' # '${{ vars.OTEL_GITHUB_KILL_SWITCH }}'
+runs:
+  using: 'node24'
+  main: 'main.js'

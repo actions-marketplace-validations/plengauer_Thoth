@@ -1,0 +1,40 @@
+name: Experiment
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - .github/workflows/experiment.yml
+jobs:
+  env:
+    strategy:
+      matrix:
+        runner: [ ubuntu-latest, macos-latest ]
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      actions: read
+    steps:
+      - run: printenv
+  experiment:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./actions/instrument/job
+        with:
+          # secrets_to_redact: '{"foo":"*"}'        
+          secrets_to_redact: '${{ toJSON(secrets) }}'
+          debug: 1
+        env:
+          OTEL_SHELL_CONFIG_GITHUB_INJECT_ON_MAIN: 'TRUE'
+          OTEL_EXPORTER_OTLP_ENDPOINT: '${{ secrets.OTEL_EXPORTER_OTLP_ENDPOINT }}'
+          OTEL_EXPORTER_OTLP_HEADERS: '${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}'
+          OTEL_SHELL_SDK_OUTPUT_REDIRECT: /dev/stderr
+      - uses: renovatebot/github-action@v44.0.4
+        env:
+          RENOVATE_REPOSITORIES: ${{ github.repository }}
+          RENOVATE_DRY_RUN: full
+        with:
+          token: ${{ secrets.ACTIONS_GITHUB_TOKEN }}
+      - run: sudo docker logs "$(sudo docker container ls -q)"

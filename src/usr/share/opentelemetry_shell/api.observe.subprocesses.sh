@@ -1,22 +1,17 @@
 #!/bin/false
 
 _otel_call_and_record_subprocesses() {
-  case "$-" in
-    *m*) local job_control=1; \set +m;;
-    *) local job_control=0;;
-  esac
   local span_handle="$1"; shift
   local call_command="$1"; shift
   local command="$1"; shift
-  local strace="$(\mktemp -u -p "$_otel_shell_pipe_dir")_opentelemetry_shell_$$.strace.pipe"
-  \mkfifo "$strace"
-  _otel_record_subprocesses "$span_handle" < "$strace" &
-  local parse_pid="$!"
+  local strace_data="$(\mktemp -u -p "$_otel_shell_pipe_dir")_opentelemetry_shell_$$.strace.pipe"
+  local strace_signal="$(\mktemp -u -p "$_otel_shell_pipe_dir")_opentelemetry_shell_$$.strace.signal"
+  \mkfifo "$strace_data" "$strace_signal"
+  _otel_record_subprocesses "$span_handle" "$strace_signal" < "$strace_data" 1> /dev/null 2> /dev/null &
   local exit_code=0
-  $call_command '\strace' -D -ttt -f -e trace=process -o "$strace" -s 8192 "${command#\\}" "$@" || local exit_code="$?"
-  \wait "$parse_pid"
-  \rm "$strace" 2> /dev/null
-  if \[ "$job_control" = 1 ]; then \set -m; fi
+  $call_command '\strace' -D -ttt -f -e trace=process -q -o "$strace_data" -s 8192 "${command#\\}" "$@" || local exit_code="$?"
+  : < "$strace_signal"
+  \rm "$strace_data" "$strace_signal" 2> /dev/null
   return "$exit_code"
 }
 
@@ -35,7 +30,10 @@ _otel_call_and_record_subprocesses() {
 # 582400 +++ killed by SIGINT +++
 _otel_record_subprocesses() {
   local root_span_handle="$1"
+  local signal="$2"
   while \read -r pid time line; do
+    if \[ "$pid" = '?' ]; then continue; fi
+    if \[ -z "${root_pid:-}" ]; then local root_pid="$pid"; \eval "local span_handle_$root_pid=$root_span_handle"; fi
     local operation=""
     case "$line" in
       *' (To be restarted)') ;;
@@ -51,21 +49,20 @@ _otel_record_subprocesses() {
       '--- '*) local operation=signal;;
       *) ;;
     esac
-    \eval "local parent_pid=\$parent_pid_$pid"
-    \eval "local span_handle=\$span_handle_$pid"
+    \eval "local span_handle=\"\${span_handle_$pid:-}\"" # could be empty if child process is faster than fork in parent
     case "$operation" in
       fork)
         if \[ "${OTEL_SHELL_CONFIG_OBSERVE_SUBPROCESSES:-FALSE}" != TRUE ]; then continue; fi
         local new_pid="${line##* }"
-        \eval "local parent_pid_$new_pid=$pid"
-        \eval "local span_name=\"\$span_name_$new_pid\""
-        if \[ -z "${span_name:-}" ]; then \eval "local span_name=\"\$span_name_$pid\""; fi
-        if \[ -z "${span_name:-}" ]; then \eval "local span_name=\"\$span_name_$parent_pid\""; fi
+        \eval "local span_name=\"\${span_name_$new_pid:-}\""
+        if \[ -z "${span_name:-}" ]; then \eval "local span_name=\"\${span_name_$pid:-}\""; fi
+        if \[ -z "${span_name:-}" ]; then \eval "local parent_pid=\$parent_pid_$pid"; \eval "local span_name=\"\${span_name_$parent_pid:-}\""; fi
         local span_name="${span_name:-<unknown>}"
-        otel_span_activate "${span_handle:-$root_span_handle}"
-        local span_handle="$(otel_span_start @"$time" INTERNAL "$span_name")"
-        otel_span_deactivate
-        \eval "local span_handle_$new_pid=$span_handle"
+        \[ -z "${span_handle:-}" ] || otel_span_activate "$span_handle" # span handle could be empty if there is a sequence of rapid forks and the parent fork is not completed yet even though child is already forking again
+        local new_span_handle="$(otel_span_start @"$time" INTERNAL "$span_name")"
+        \[ -z "${span_handle:-}" ] || otel_span_deactivate
+        \eval "local span_handle_$new_pid=$new_span_handle"
+        \eval "local parent_pid_$new_pid=$pid"
         \eval "local span_name_$new_pid=\"\$span_name\""
         # TODO immediately end span if stored due to very fast exit (faster than the fork syscall of the parent can actually be finished) 
         ;;
@@ -85,19 +82,19 @@ _otel_record_subprocesses() {
             ;;
           *) local name="<unknown>";;
         esac
+        \[ -z "$span_handle" ] || \[ "$span_handle" = "$root_span_handle" ] || otel_span_name "$span_handle" "$name"
         \eval "local span_name_$pid=\"\$name\""
-        if \[ -n "${span_handle:-}" ]; then
-          otel_span_name "$span_handle" "$name"
-        fi
         ;;
       exit)
-        if \[ -z "${span_handle:-}" ]; then continue; fi
+        \[ -n "${span_handle:-}" ] || continue; # if the exit is faster than the fork of the parent, then we dont have a handle we are leaking a span - we accept that
+        if \[ "$pid" = "$root_pid" ] && \[ "${signaled:-false}" != true ]; then : > "$signal"; local signaled=true; fi
         if _otel_string_starts_with "$line" "+++ killed by " || (_otel_string_starts_with "$line" "+++ exited with " && ! _otel_string_starts_with "$line" "+++ exited with 0 +++"); then
           otel_span_error "$span_handle"
         fi
-        otel_span_end "$span_handle" @"$time"
+        \[ "$span_handle" = "$root_span_handle" ] || otel_span_end "$span_handle" @"$time"
         ;;
       signal)
+        \[ -n "${span_handle:-}" ] || continue; # this can happen if a child receives a signal before the parent completes forking, in this case, lets drop the signal
         if \[ "${OTEL_SHELL_CONFIG_OBSERVE_SIGNALS:-FALSE}" != TRUE ]; then continue; fi
         if \[ "$_otel_shell" = bash ]; then
           local name="$line"
@@ -119,9 +116,10 @@ _otel_record_subprocesses() {
         else
           \printf '%s' "$kvps" | \tr -d ' ' | \tr '_' '.' | \tr ',' '\n'
         fi | while \read -r kvp; do otel_event_attribute "$event_handle" "$kvp"; done
-        otel_event_add "$event_handle" "${span_handle:-$root_span_handle}"
+        otel_event_add "$event_handle" "$span_handle"
         ;;
       *) ;;
     esac
-  done
+  done || while \read -r line; do :; done
+  if \[ "${signaled:-false}" != true ]; then : > "$signal"; fi
 }

@@ -1,0 +1,53 @@
+name: "Analyze"
+on:
+  push:
+    branches:
+      - "main"
+      - "release/v*"
+  pull_request:
+    branches:
+      - "main"
+      - "release/v*"
+  schedule:
+    - cron: '0 0 * * *'
+env:
+  CODEQL_EXTRACTOR_CPP_BUILD_MODE_NONE: 'true' # scanning c/c++ without building it is an experimental feature and needs to be enabled like this until released
+jobs:
+  codeql:
+    runs-on: ${{ (matrix.language == 'swift' && 'macos-latest') || 'ubuntu-latest' }}
+    permissions:
+      security-events: write
+      packages: read
+      actions: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - language: c-cpp
+            build-mode: none
+          - language: javascript-typescript
+            build-mode: none
+          - language: python
+            build-mode: none
+          - language: java
+            build-mode: none
+          - language: actions
+            build-mode: none
+    steps:
+      - uses: plengauer/opentelemetry-github/actions/instrument/job@v5.36.0
+        with:
+          secrets_to_redact: '["${{ github.token }}"]'
+        env:
+          OTEL_EXPORTER_OTLP_ENDPOINT: '${{ secrets.OTEL_EXPORTER_OTLP_ENDPOINT }}'
+          OTEL_EXPORTER_OTLP_HEADERS: '${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}'
+      - name: Checkout repository
+        uses: actions/checkout@v5.0.1
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v4.31.4
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v4.31.4
+        with:
+          category: "/language:${{matrix.language}}"

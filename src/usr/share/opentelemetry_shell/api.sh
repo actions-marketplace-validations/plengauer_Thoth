@@ -10,7 +10,7 @@ if \[ -n "${OTEL_SHELL_TRACES_ENABLE:-}" ] || \[ -n "${OTEL_SHELL_METRICS_ENABLE
   \[ "${OTEL_SHELL_TRACES_ENABLE:-FALSE}" = TRUE ] && \export OTEL_TRACES_EXPORTER=otlp || \export OTEL_TRACES_EXPORTER=""
   \[ "${OTEL_SHELL_METRICS_ENABLE:-FALSE}" = TRUE ] && \export OTEL_METRICS_EXPORTER=otlp || \export OTEL_METRICS_EXPORTER=""
   \[ "${OTEL_SHELL_LOGS_ENABLE:-FALSE}" = TRUE ] && \export OTEL_LOGS_EXPORTER=otlp || \export OTEL_LOGS_EXPORTER=""
-  \export OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE=delta
+  \export OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE="${OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE:-delta}"
 fi
 
 # check environment
@@ -23,6 +23,10 @@ if \[ -z "${TMPDIR:-}" ]; then TMPDIR=/tmp; fi
 _otel_shell_pipe_dir="${OTEL_SHELL_PIPE_DIR:-$TMPDIR}"
 _otel_remote_sdk_pipe="${OTEL_REMOTE_SDK_PIPE:-$(\mktemp -u -p "$_otel_shell_pipe_dir")_opentelemetry_shell_$$.pipe}"
 _otel_remote_sdk_fd="${OTEL_REMOTE_SDK_FD:-7}"
+_otel_remote_sdk_stdout_redirect="${OTEL_SHELL_SDK_STDOUT_REDIRECT:-${OTEL_SHELL_SDK_OUTPUT_REDIRECT:-/dev/stderr}}"
+_otel_remote_sdk_stderr_redirect="${OTEL_SHELL_SDK_STDERR_REDIRECT:-${OTEL_SHELL_SDK_OUTPUT_REDIRECT:-/dev/stderr}}"
+if ! \[ -w "$_otel_remote_sdk_stdout_redirect" ]; then _otel_remote_sdk_stdout_redirect=/dev/null; fi
+if ! \[ -w "$_otel_remote_sdk_stderr_redirect" ]; then _otel_remote_sdk_stderr_redirect=/dev/null; fi
 _otel_shell="$(\readlink "/proc/$$/exe")"
 _otel_shell="${_otel_shell##*/}"
 if \[ "$_otel_shell" = busybox ]; then _otel_shell="busybox sh"; fi
@@ -34,7 +38,7 @@ unset OTEL_SHELL_SPAN_KIND_OVERRIDE
 
 if \[ -p "$_otel_remote_sdk_pipe" ]; then
   otel_init() {
-    _otel_mkfifo_flags=--mode=666
+    _otel_mkfifo_flags="-m 666"
     \eval "\\exec ${_otel_remote_sdk_fd}> \"$_otel_remote_sdk_pipe\""
   }
 
@@ -43,19 +47,22 @@ if \[ -p "$_otel_remote_sdk_pipe" ]; then
   }
 else
   otel_init() {
-    \mkfifo "$_otel_remote_sdk_pipe"
     _otel_package_version opentelemetry-shell > /dev/null # to build the cache outside a subshell
     _otel_package_version "$_otel_shell" > /dev/null
-    # several weird things going on in the next line, (1) using '((' fucks up the syntax highlighting in github while '( (' does not, and (2) &> causes weird buffering / late flushing behavior
-    if \env --help 2>&1 | \grep -q 'ignore-signal'; then local extra_env_flags='--ignore-signal=INT --ignore-signal=HUP'; fi
-    ( (\env ${extra_env_flags:-} /opt/opentelemetry_shell/sdk/venv/bin/python /usr/share/opentelemetry_shell/sdk.py "shell" "$(_otel_package_version opentelemetry-shell)" < "$_otel_remote_sdk_pipe" 1> "${OTEL_SHELL_SDK_OUTPUT_REDIRECT:-/dev/stderr}" 2> "${OTEL_SHELL_SDK_OUTPUT_REDIRECT:-/dev/stderr}") &)
+    \mkfifo "$_otel_remote_sdk_pipe"
+    if \[ -n "${USER:-}" ] && \[ -p /tmp/otel_shell/sdk_factory."$USER".pipe ] && \[ "${OTEL_LOGS_EXPORTER:-otlp}" != console ] && \[ "${OTEL_METRICS_EXPORTER:-otlp}" != console ] && \[ "${OTEL_TRACES_EXPORTER:-otlp}" != console ]; then
+      \echo shell "$(_otel_package_version opentelemetry-shell)" "$_otel_remote_sdk_pipe" >> /tmp/otel_shell/sdk_factory."$USER".pipe
+    else
+      # several weird things going on in the next line, (1) using '((' fucks up the syntax highlighting in github while '( (' does not, and (2) &> causes weird buffering / late flushing behavior
+      if \env --help 2>&1 | \grep -q 'ignore-signal'; then local extra_env_flags='--ignore-signal=INT --ignore-signal=HUP'; fi
+      ( \exec \env ${extra_env_flags:-} /opt/opentelemetry_shell/venv/bin/python /usr/share/opentelemetry_shell/sdk.py shell "$(_otel_package_version opentelemetry-shell)" < "$_otel_remote_sdk_pipe" 1> "$_otel_remote_sdk_stdout_redirect" 2> "$_otel_remote_sdk_stderr_redirect" &)
+    fi
     \eval "\\exec ${_otel_remote_sdk_fd}> \"$_otel_remote_sdk_pipe\""
     _otel_resource_attributes
     _otel_sdk_communicate "INIT"
   }
 
   otel_shutdown() {
-    _otel_sdk_communicate "SHUTDOWN"
     \eval "\\exec ${_otel_remote_sdk_fd}>&-"
     \rm "$_otel_remote_sdk_pipe"
   }
@@ -83,9 +90,9 @@ _otel_resource_attributes() {
 
 _otel_resource_attributes_service() {
   _otel_resource_attribute string service.name="${OTEL_SERVICE_NAME:-unknown_service}"
-  _otel_resource_attribute string service.version="${OTEL_SERVICE_VERSION:-}"
-  _otel_resource_attribute string service.namespace="${OTEL_SERVICE_NAMESPACE:-}"
-  _otel_resource_attribute string service.instance.id="${OTEL_SERVICE_INSTANCE_ID:-}"
+  \[ -z "${OTEL_SERVICE_VERSION:-}" ] || _otel_resource_attribute string service.version="${OTEL_SERVICE_VERSION:-}"
+  \[ -z "${OTEL_SERVICE_NAMESPACE:-}" ] || _otel_resource_attribute string service.namespace="${OTEL_SERVICE_NAMESPACE:-}"
+  \[ -z "${OTEL_SERVICE_INSTANCE_ID:-}" ] || _otel_resource_attribute string service.instance.id="${OTEL_SERVICE_INSTANCE_ID:-}"
 }
 
 _otel_resource_attributes_process() {
@@ -156,14 +163,16 @@ else
 fi
 
 _otel_resolve_package_version() {
-  (\dpkg -s "$1" || \rpm -qi "$1") 2> /dev/null | \grep Version | \cut -d : -f 2 | tr -d ' '
+  (\dpkg -s "$1" || \rpm -qi "$1" || \apk version "$1" | \tail -n 1 | \cut -d - -f 2 | { \echo -n 'Version: '; \cat; }) 2> /dev/null | \grep Version | \cut -d : -f 2 | tr -d ' ' || \true
 }
 
 otel_span_current() {
   local response_pipe="$(\mktemp -u -p "$_otel_shell_pipe_dir")_opentelemetry_shell_$$.span_handle.pipe"
   \mkfifo ${_otel_mkfifo_flags:-} "$response_pipe"
   _otel_sdk_communicate "SPAN_HANDLE" "$response_pipe" "${TRACEPARENT:-}"
-  \cat "$response_pipe"
+  local handle
+  \read handle < "$response_pipe" || \true
+  \echo "$handle"
   \rm "$response_pipe" 1> /dev/null 2> /dev/null
 }
 
@@ -174,7 +183,9 @@ otel_span_start() {
   local response_pipe="$(\mktemp -u -p "$_otel_shell_pipe_dir")_opentelemetry_shell_$$.span_handle.pipe"
   \mkfifo ${_otel_mkfifo_flags:-} "$response_pipe"
   _otel_sdk_communicate "SPAN_START" "$response_pipe" "${TRACEPARENT:-}" "${TRACESTATE:-}" "$time" "$kind" "$name"
-  \cat "$response_pipe"
+  local handle
+  \read handle < "$response_pipe" || \true
+  \echo "$handle"
   \rm "$response_pipe" 1> /dev/null 2> /dev/null
 }
 
@@ -213,7 +224,9 @@ otel_span_traceparent() {
   local response_pipe="$(\mktemp -u -p "$_otel_shell_pipe_dir")_opentelemetry_shell_$$.traceparent.pipe"
   \mkfifo ${_otel_mkfifo_flags:-} "$response_pipe"
   _otel_sdk_communicate "SPAN_TRACEPARENT" "$response_pipe" "$span_handle"
-  \cat "$response_pipe"
+  local traceparent
+  \read traceparent < "$response_pipe" || \true
+  \echo "$traceparent"
   \rm "$response_pipe" 1> /dev/null 2> /dev/null
 }
 
@@ -244,7 +257,9 @@ otel_event_create() {
   local response_pipe="$(\mktemp -u -p "$_otel_shell_pipe_dir")_opentelemetry_shell_$$.event_handle.pipe"
   \mkfifo ${_otel_mkfifo_flags:-} "$response_pipe"
   _otel_sdk_communicate "EVENT_CREATE" "$response_pipe" "$event_name"
-  \cat "$response_pipe"
+  local handle
+  \read handle < "$response_pipe" || \true
+  \echo "$handle"
   \rm "$response_pipe" 1> /dev/null 2> /dev/null
 }
 
@@ -273,7 +288,9 @@ otel_link_create() {
   local response_pipe="$(\mktemp -u -p "$_otel_shell_pipe_dir")_opentelemetry_shell_$$.link_handle.pipe"
   \mkfifo ${_otel_mkfifo_flags:-} "$response_pipe"
   _otel_sdk_communicate "LINK_CREATE" "$response_pipe" "$traceparent" "$tracestate" END
-  \cat "$response_pipe"
+  local handle
+  \read handle < "$response_pipe" || \true
+  \echo "$handle"
   \rm "$response_pipe" 1> /dev/null 2> /dev/null
 }
 
@@ -304,7 +321,9 @@ otel_counter_create() {
   local response_pipe="$(\mktemp -u -p "$_otel_shell_pipe_dir")_opentelemetry_shell_$$.counter_handle.pipe"
   \mkfifo ${_otel_mkfifo_flags:-} "$response_pipe"
   _otel_sdk_communicate "COUNTER_CREATE" "$response_pipe" "$type" "$name" "$unit" "$description"
-  \cat "$response_pipe"
+  local handle
+  \read handle < "$response_pipe" || \true
+  \echo "$handle"
   \rm "$response_pipe" 1> /dev/null 2> /dev/null
 }
 
@@ -319,7 +338,9 @@ otel_observation_create() {
   local response_pipe="$(\mktemp -u -p "$_otel_shell_pipe_dir")_opentelemetry_shell_$$.observation_handle.pipe"
   \mkfifo ${_otel_mkfifo_flags:-} "$response_pipe"
   _otel_sdk_communicate "OBSERVATION_CREATE" "$response_pipe" "$value"
-  \cat "$response_pipe"
+  local handle
+  \read handle < "$response_pipe" || \true
+  \echo "$handle"
   \rm "$response_pipe" 1> /dev/null 2> /dev/null
 }
 
@@ -375,8 +396,8 @@ otel_observe() {
   otel_span_activate "$span_handle"
   local exit_code=0
   local call_command=_otel_call
-  if \[ "${OTEL_SHELL_CONFIG_OBSERVE_SUBPROCESSES:-FALSE}" = TRUE ] || \[ "${OTEL_SHELL_CONFIG_OBSERVE_SIGNALS:-FALSE}" = TRUE ]; then if ! _otel_string_starts_with "$1" _otel_ && \[ "$command_type" = file ] && \type strace 1> /dev/null 2> /dev/null; then local call_command="_otel_call_and_record_subprocesses $span_handle $call_command"; fi; fi
-  if ! \[ -t 2 ] && ! _otel_string_contains "$-" x; then local call_command="_otel_call_and_record_logs $call_command"; fi
+  if \[ "${OTEL_SHELL_CONFIG_OBSERVE_SUBPROCESSES:-FALSE}" = TRUE ] || \[ "${OTEL_SHELL_CONFIG_OBSERVE_SIGNALS:-FALSE}" = TRUE ]; then if \[ -z "${WSL_DISTRO_NAME:-}" ] && ! _otel_string_starts_with "$1" _otel_ && \[ "$command_type" = file ] && \type strace 1> /dev/null 2> /dev/null; then local call_command="_otel_call_and_record_subprocesses $span_handle $call_command"; fi; fi
+  if ! \[ -t 2 ] && ! _otel_string_contains "$-" x && \[ "${OTEL_SHELL_CONFIG_OBSERVE_STDERR:-TRUE}" = TRUE ]; then local call_command="_otel_call_and_record_logs $call_command"; fi
   if ! \[ -t 0 ] && ! \[ -t 1 ] && ! \[ -t 2 ] && ! _otel_string_contains "$-" x && \[ "${OTEL_SHELL_CONFIG_OBSERVE_PIPES:-FALSE}" = TRUE ]; then local call_command="_otel_call_and_record_pipes $span_handle $command_type $call_command"; fi
   $call_command "$@" || local exit_code="$?"
   otel_span_deactivate "$span_handle"
@@ -423,21 +444,11 @@ if ! \type which 1> /dev/null 2> /dev/null; then
   fi
 fi
 
-if \[ "$_otel_shell" = dash ] || \[ "$_otel_shell" = 'busybox sh' ]; then # LEGACY this seems to be only necessary for old dashes on focal
-  # old versions of dash dont set env vars properly
-  # more specifically they do not make variables that are set in front of commands part of the child process env vars but only of the local execution environment
-  _otel_call() {
-    local command="$1"; shift
-    if ! _otel_string_starts_with "$command" "\\"; then local command="$(_otel_escape_arg "$command")"; fi
-    \eval "$( { \printenv; \set; } | \grep -E '^OTEL_|^PYTHONPATH=|^JAVA_TOOL_OPTIONS=' | \cut -d = -f 1 | \sort -u | \awk '{ print $1 "=\"$" $1 "\"" }' | _otel_line_join)" "$command" "$(_otel_escape_args "$@")"
-  }
-else
-  _otel_call() {
-    local command="$1"; shift
-    if ! _otel_string_starts_with "$command" "\\"; then local command="$(_otel_escape_arg "$command")"; fi
-    \eval "$command" "$(_otel_escape_args "$@")"
-  }
-fi
+_otel_call() {
+  local command="$1"
+  shift
+  \alias "$command" 1> /dev/null 2> /dev/null && \eval "$(_otel_escape_args "${command#\\}" "$@")" || "${command#\\}" "$@"
+}
 
 \. /usr/share/opentelemetry_shell/api.observe.logs.sh
 \. /usr/share/opentelemetry_shell/api.observe.pipes.sh
@@ -449,7 +460,7 @@ if \[ "$_otel_shell" = bash ]; then
   }
 else
   _otel_command_type() {
-    case "$(\type "$1")" in
+    case "$(\type "$1" 2> /dev/null)" in
       "$1 is a shell keyword") \echo keyword;;
       "$1 is a shell alias for "*) \echo alias;;
       "$1 is an alias for "*) \echo alias;;
@@ -483,18 +494,12 @@ _otel_escape_args() {
 }
 
 _otel_escape_arg() {
-   # that SO article shows why this is extra fun! https://stackoverflow.com/questions/16991270/newlines-at-the-end-get-removed-in-shell-scripts-why
   local do_escape=0
-  if \[ -z "$1" ]; then
-    local do_escape=1
-  elif \[ "$1X" != "$(\echo "$1")"X ]; then # fancy check for "contains linefeed"
-    local do_escape=1
-  else
-    case "$1X" in
-      *[[:space:]\&\<\>\|\'\"\(\)\`\!\$\;\\\*]*) local do_escape=1 ;;
-      *) local do_escape=0 ;;
-    esac
-  fi
+  case "$1" in
+    '') local do_escape=1;;
+    *[[:space:]\&\<\>\|\'\"\(\)\`\!\$\;\\\*]*) local do_escape=1;;  
+    *) local do_escape=0;;
+  esac
   if \[ "$do_escape" = 1 ]; then
     if \[ "${no_quote:-0}" = 1 ]; then local format_string='%s'; else local format_string="'%s'"; fi
     _otel_escape_arg_format "$format_string" "$1"

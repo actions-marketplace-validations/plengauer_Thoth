@@ -4,7 +4,7 @@ This project delivers [OpenTelemetry](https://opentelemetry.io/) traces, metrics
 
 The project is named after [Thoth](https://en.wikipedia.org/wiki/Thoth), the Egyptian god of (among other things) wisdom, knowledge, and science (aka observability), writing and hieroglyphs (aka shell scripts), and judgment of the dead (aka troubleshooting). Thoth was also a member of the Ogdoad, a group of gods responsible for creating the world (aka probably the original GitHub CI/CD pipeline).
 
-[![Tests](https://github.com/plengauer/opentelemetry-bash/actions/workflows/test.yaml/badge.svg?branch=main)](https://github.com/plengauer/opentelemetry-bash/actions/workflows/test.yaml)
+[![Tests](https://github.com/plengauer/opentelemetry-bash/actions/workflows/test.yml/badge.svg?branch=main)](https://github.com/plengauer/opentelemetry-bash/actions/workflows/test.yml)
 
 # Overview
 Check out our detailed [Demos](https://github.com/plengauer/opentelemetry-bash/tree/main/demos).
@@ -126,7 +126,7 @@ gh attestation verify ./package.deb -R plengauer/opentelemetry-bash
 You can either use the fully automatic instrumentation (recommended) or just import the API to do everything manually. In both cases, you can use the API to manually create customized spans and metrics. However, the automatic approach creates rich spans and logs fully automatically. We recommend to use the manual approach only to augment the automatic approach where necessary.
 
 ## Automatic Instrumentation of Shell Scrips
-This project currently supports and is actively tested on debian-based (Debian and Ubuntu) and rpm-based (Fedora, OpenSuse, and Red Hat Enterprise Linux (RHEL)) operating systems as well as on the Windows Subsystem for Linux. The code also works on other Linux-based operating systems, however, there are no readily available installation packages for these systems. Mac-based operating systems are currently not supported. For deployment in GitHub actions, see Automatic Instrumentation of GitHub Actions below. For deployment on other any Linux-based system, install either via
+This project currently supports and is actively tested on debian-based (Debian and Ubuntu), rpm-based (Fedora, OpenSuse, and Red Hat Enterprise Linux (RHEL)) operating systems, Alpine Linux, as well as on the Windows Subsystem for Linux. The code also works on other Linux-based operating systems, however, there are no readily available installation packages for these systems. Mac-based operating systems are currently not supported. For deployment in GitHub actions, see Automatic Instrumentation of GitHub Actions below. For deployment on other any Linux-based system, install either via
 ```bash
 wget -O - https://raw.githubusercontent.com/plengauer/opentelemetry-shell/main/INSTALL.sh | sh
 ```
@@ -157,13 +157,16 @@ If the command represents communication to a third party service (like a HTTP re
 Finally, a single root span will be created and activated that represents the script. This span will automatically be deactivated and ended when the script ends.
 
 ## Automatic Instrumentation of GitHub Actions
-To automatically monitor your GitHub Actions by exporting logs, metrics and traces, this project can be used to instrument at workflow level as well as on job level. The workflow-level instrumentation is deployed as a separate workflow (see below), triggered by `workflow run` events, and uses the GitHub API to create logs, metrics, and spans based on the meta data that GitHub provides. The job-level instrumentation is deployed as the first action within a job definition (see below) and runs on the GitHub runner itself.
+To automatically monitor your GitHub Actions by exporting logs, metrics and traces, this project can be used to instrument at workflow level as well as on job level. The workflow-level instrumentation is deployed as a separate workflow (see below), triggered by `workflow run` events, and uses the GitHub API to create logs, metrics, and spans based on the meta data that GitHub provides. The job-level instrumentation is deployed as the first action within a job definition (see below) and runs on the GitHub runner itself. One can either deploy workflow-level and job-level instrumentation manually by adjusting all workflows, or use a separate deploy workflow to deploy it fully automatically on every change to any GitHub action.
 
-The workflow-level instrumentation is a good starting point to get an overview of the GitHub actions of repository. It can export logs (all logs that GitHub records), metrics (count and duration metrics for workflows, jobs, steps, and actions), as well as spans for workflows, jobs, and steps. However, since it observes any signal only after the fact, it lacks depth and details. The job-level instrumentation can be deployed into any job running on a linux-based runner and exports the same logs, the same metrics for jobs, steps, and actions, and the same traces for jobs and steps. Since it is injected and running inside a job, metrics and spans are richer in details. For example, it can capture detailed input and output paramters to every step, as well as state transitions. Additionally, job-level instrumentation can actually inject into every GitHub step (no matter if its a script action, docker action, node action, or composite action) and generate detailed traces describing their internal activities. Additionally, measurements are more accurate compared to the workflow-level instrumentation.
+The workflow-level instrumentation is a good starting point to get an overview of the GitHub actions of repository. It can export logs (all logs that GitHub records), metrics (count and duration metrics for workflows, jobs, steps, and actions), as well as spans for workflows, jobs, and steps. However, since it observes any signal only after the fact, it lacks depth and details. The job-level instrumentation can be deployed into any job running on a linux-based runner and exports the same logs, the same metrics for jobs, steps, and actions, and the same traces for jobs and steps. Since it is injected and running inside a job, metrics and spans are richer in details. For example, it can capture detailed input and output paramters to every step, as well as state transitions. Additionally, job-level instrumentation can actually inject into every GitHub step (no matter if its a shell action, node action, docker action, or composite action) and generate detailed traces describing their internal activities. Additionally, measurements are more accurate compared to the workflow-level instrumentation.
 
 Both methods of instrumentation can be combined arbitrarily. Deploying them both at the same time, will combine their advantages without any double recording of any log, metric, trace or span.
 
-### Automatical Deployment of Workflow-level and Job-level Instrumentations
+### Self Monitoring of GitHub Instrumentations and Data Collection
+To steer roadmap and maintenance efforts, job-level and workflow-level instrumentations report high-level usage metrics to the maintainers. This data includes invocation counts of the individual instrumentations and features therein, as well as resuable action names (e.g., `actions/checkout`), runner operating systems (e.g., `ubuntu`), architectures (e.g., `x64`) and types (e.g., `self-hosted`). The data is automatically collected for all repositories that are hosted on GitHub SaaS. For self-hosted GitHub servers, no data at all is collected. In all cases, no workflow data, code, secrets, artifacts, dynamic data or any personal data is collected. This default behavior can be overwritten on job-level and workflow-level instrumentations with the `self_monitoring` and `self_monitoring_anonymize` parameters.
+
+### Automatic Deployment of Workflow-level and Job-level Instrumentations
 To automatically deploy workflow-level and job-level instrumentations to all your GitHub actions, copy the following workflow into your `.github/workflows` directory. Make sure, the GitHub token has permissions to open pull requests (configurable in the repository settings) or specify a token with the correct permissions explicitly with the `github_token` parameter. This workflow will also update instrumentations when a new workflow is created. The configuration in the `env` section will be deployed to all instrumentations.
 ```yaml
 name: 'Deploy OpenTelemetry'
@@ -177,12 +180,17 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    concurrency:
+      group: otel-deploy-job
     steps:
-      - uses: plengauer/opentelemetry-github/actions/instrument/deploy@main
+      - uses: plengauer/Thoth/actions/instrument/deploy@v5.36.0
         env:
           OTEL_EXPORTER_OTLP_ENDPOINT: '${{ secrets.OTEL_EXPORTER_OTLP_ENDPOINT }}'
           OTEL_EXPORTER_OTLP_HEADERS: '${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}'
+        with:
+          github_token: '${{ secrets.DEPLOY_OBSERVABILITY_TOKEN }}' # TODO configure a token that has permissions to push contents and open pull requests
 ```
+This workflow only deploys workflow-level and job-level instrumentations. It does not keep them up to date, for that we recommend to use <a href="https://docs.renovatebot.com/">renovate</a>.
 
 ### Manual Deployment of Workflow-level and Job-level Instrumentations
 To deploy workflow-level instrumentation, use the code snippet below in a dedicated workflow to run after any other explicitly configured workflow. You can configure the SDK as described <a href="https://opentelemetry.io/docs/languages/sdk-configuration/">here</a> by adding according environment variables. Workflow-level instrumentation can be combined arbitrarily with job-level instrumentation.
@@ -197,15 +205,15 @@ jobs:
   export:
     runs-on: ubuntu-latest
     steps:
-      - uses: plengauer/opentelemetry-github/actions/instrument/workflow@main
+      - uses: plengauer/opentelemetry-github/actions/instrument/workflow@v5.36.0
         env:
           OTEL_SERVICE_NAME: ${{ secrets.SERVICE_NAME }}
           # ...
 ```
 
-To deploy job-level instrumetnation, add the following step as first in every job you want to observe. You can configure the SDK as described <a href="https://opentelemetry.io/docs/languages/sdk-configuration/">here</a> by adding according environment variables to the setup step. Job-level instrumentation can be combined arbitrarily with workflow-level instrumentation.
+To deploy job-level instrumentation, add the following step as first in every job you want to observe. You can configure the SDK as described <a href="https://opentelemetry.io/docs/languages/sdk-configuration/">here</a> by adding according environment variables to the setup step. Job-level instrumentation can be combined arbitrarily with workflow-level instrumentation.
 ```yaml
-- uses: plengauer/opentelemetry-github/actions/instrument/job@main
+- uses: plengauer/opentelemetry-github/actions/instrument/job@v5.36.0
   env:
     OTEL_SERVICE_NAME: 'Test'
     # ...
@@ -213,10 +221,18 @@ To deploy job-level instrumetnation, add the following step as first in every jo
 ```
 Depending on the actions in use, GitHub `secrets` or other sensitive information could appear in commandlines or action inputs/states which may captured as attributes on spans, metrics, or logs recorded by job-level instrumentation. To redact these secrets, use the following parameter to redact their values from any attribute. The value of the parameter must be a `json` object, whereas every value of every field is considered a secret to be redacted. By default, if left unset, the implicit GitHub token is redacted.
 ```yaml
-- uses: plengauer/opentelemetry-github/actions/instrument/job@main
+- uses: plengauer/opentelemetry-github/actions/instrument/job@v5.36.0
   with:
     secrets_to_redact: '${{ toJSON(secrets) }}' # Redact all secrets from any attribute, span name, or log body.
 ```
+
+The workflow-level and job-level instrumentations use <a href="https://docs.github.com/en/actions/security-for-github-actions/security-guides/automatic-token-authentication">automatic token authentication</a>. For private repositories and manual deployment, additional permissions need to be granted.
+For private repositories only, one either must set the implicit GitHub token used for automatic token authentication to permissive (via Settings -> Actions -> General -> Workflow Permissions -> Read and Write Permissions) or grant the necessary scopes explicitly in every workflow with the following snippet:
+```yaml
+permissions:
+  actions: read
+```
+When using automatic deployment, permissions are adjusted automatically.
 
 ## Manual Instrumentation
 Import the API by referencing the `otelapi.sh` file. This is only necessary if you do not choose a fully automatic approach described above. In case you use automatic instrumentation, the API will be imported automatically for you.
@@ -239,7 +255,7 @@ You can configure the underlying SDK with the same variables as any other OpenTe
 | OTEL_SHELL_CONFIG_OBSERVE_PIPES             | `TRUE`, `FALSE` | `TRUE` for GitHub Actions, `FALSE` otherwise | Count bytes and lines on stdout, and stderr and add counts as attributes on spans.          | stable       |
 | OTEL_SHELL_CONFIG_OBSERVE_PIPES_STDIN       | `TRUE`, `FALSE` | `FALSE`                                      | Count bytes and lines on stdin and add counts as attributes on spans.                       | unsafe       |
 | OTEL_SHELL_CONFIG_MUTE_INTERNALS            | `TRUE`, `FALSE` | `FALSE`                                      | Only create `SERVER`, `CONSUMER`, `CLIENT` and `PRODUCER` spans, mute all `INTERNAL` spans. | stable       |
-| OTEL_SHELL_CONFIG_MUTE_BUILTINs             | `TRUE`, `FALSE` | `TRUE` for GitHub Actions, `FALSE` otherwise | Do not create spans for built-in commands like `echo`, `printf`, `[`, ...                   | stable       |
+| OTEL_SHELL_CONFIG_MUTE_BUILTINS             | `TRUE`, `FALSE` | `TRUE` for GitHub Actions, `FALSE` otherwise | Do not create spans for built-in commands like `echo`, `printf`, `[`, ...                   | stable       |
 | OTEL_SHELL_CONFIG_INJECT_DEEP               | `TRUE`, `FALSE` | `TRUE` for GitHub Actions, `FALSE` otherwise | Inject native OpenTelemetry into scripting languages like node.js, python or java.          | stable       |
 | OTEL_SHELL_CONFIG_INSTRUMENT_ABSOLUTE_PATHS | `TRUE`, `FALSE` | `FALSE`                                      | Create spans for commands with an absolute path to the executable.                          | experimental |
 | OTEL_SHELL_CONFIG_OBSERVE_SIGNALS           | `TRUE`, `FALSE` | `TRUE` for GitHub Actions, `FALSE` otherwise | Create events for received signals.                                                         | stable       |

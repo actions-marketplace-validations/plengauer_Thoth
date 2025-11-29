@@ -11,10 +11,6 @@ _otel_call_and_record_pipes() {
   # (*) tee for stdin does ONLY terminate when it writes something and realizes the process has terminated
   # (**) so in cases where stdin is open but nobody every writes to it and the process doesnt expect input, tee hangs forever
   # (**) this is different to output streams, because they get properly terminated with SIGPIPE on read
-  case "$-" in
-    *m*) local job_control=1; \set +m;;
-    *) local job_control=0;;
-  esac
   local span_handle="$1"; shift
   local command_type="$1"; shift
   local call_command="$1"; shift
@@ -50,7 +46,7 @@ _otel_call_and_record_pipes() {
   local stdout_pid="$!"
   \tee "$stderr_bytes" "$stderr_lines" < "$stderr" >&2 2> /dev/null &
   local stderr_pid="$!"
-  if \[ "$OTEL_SHELL_CONFIG_OBSERVE_PIPES_STDIN" != TRUE ] || \[ "$(\readlink -f /proc/self/fd/0)" = /dev/null ] || \[ "$command_type" = builtin ] || \[ "$command_type" = 'function' ] || \[ "$command_type" = keyword ] || \[ -n "${WSL_DISTRO_NAME:-}" ]; then
+  if \[ "${OTEL_SHELL_CONFIG_OBSERVE_PIPES_STDIN:-FALSE}" != TRUE ] || \[ "$(\readlink -f /proc/self/fd/0)" = /dev/null ] || \[ "$command_type" = builtin ] || \[ "$command_type" = 'function' ] || \[ "$command_type" = keyword ] || \[ -n "${WSL_DISTRO_NAME:-}" ]; then
     local observe_stdin=FALSE
     \echo -n '' > "$stdin_bytes"
     \echo -n '' > "$stdin_lines"
@@ -63,23 +59,31 @@ _otel_call_and_record_pipes() {
     \tee "$stdin_bytes" "$stdin_lines" 2> /dev/null | {
       local inner_exit_code=0
       $call_command "$@" || local inner_exit_code="$?"
-      local stdin_pid="$(\ps -o 'pid,command' | \grep -F "tee $stdin_bytes $stdin_lines" | \grep -vF grep | \awk '{ print $1 }')"
+      local stdin_pid="$(\ps -o 'pid,comm' | \grep -F "tee $stdin_bytes $stdin_lines" | \grep -vF grep | \awk '{ print $1 }')"
       if \[ -n "$stdin_pid" ]; then \kill -2 "$stdin_pid" 2> /dev/null || \true; fi
       \echo -n "$inner_exit_code" > "$exit_code_file"
     } 1> "$stdout" 2> "$stderr" || \true
     local exit_code="$(\cat "$exit_code_file")"
     \rm "$exit_code_file" 2> /dev/null
   fi
-  \wait "$stdin_bytes_pid" "$stdin_lines_pid" "$stdout_bytes_pid" "$stdout_lines_pid" "$stderr_bytes_pid" "$stderr_lines_pid" "$stdout_pid" "$stderr_pid"
-  \rm "$stdout" "$stderr" "$stdin_bytes" "$stdin_lines" "$stdout_bytes" "$stdout_lines" "$stderr_bytes" "$stderr_lines" 2> /dev/null
   if \[ "$observe_stdin" = TRUE ]; then
+    \wait "$stdin_bytes_pid" "$stdin_lines_pid"
     _otel_record_pipes "$span_handle" stdin 0 "$stdin_bytes_result" "$stdin_lines_result"
   fi
-  _otel_record_pipes "$span_handle" stdout 1 "$stdout_bytes_result" "$stdout_lines_result"
-  _otel_record_pipes "$span_handle" stderr 2 "$stderr_bytes_result" "$stderr_lines_result"
-  \rm "$stdin_bytes_result" "$stdin_lines_result" "$stdout_bytes_result" "$stdout_lines_result" "$stderr_bytes_result" "$stderr_lines_result" 2> /dev/null
-  if \[ "$job_control" = 1 ]; then \set -m; fi
+  if ! _otel_is_stream_open "$stdout_pid" 0; then
+    \wait "$stdout_bytes_pid" "$stdout_lines_pid"
+    _otel_record_pipes "$span_handle" stdout 1 "$stdout_bytes_result" "$stdout_lines_result"
+  fi
+  if ! _otel_is_stream_open "$stderr_pid" 0; then
+    \wait "$stderr_bytes_pid" "$stderr_lines_pid"
+    _otel_record_pipes "$span_handle" stderr 2 "$stderr_bytes_result" "$stderr_lines_result"
+  fi
+  \rm "$stdout" "$stderr" "$stdin_bytes" "$stdin_lines" "$stdout_bytes" "$stdout_lines" "$stderr_bytes" "$stderr_lines" "$stdin_bytes_result" "$stdin_lines_result" "$stdout_bytes_result" "$stdout_lines_result" "$stderr_bytes_result" "$stderr_lines_result" 2> /dev/null
   return "$exit_code"
+}
+
+_otel_is_stream_open() {
+  \lsof -p "$1" -ad "$2" -O -b -t 2> /dev/null | \grep -qF -- "$1"
 }
 
 _otel_record_pipes() {
@@ -89,6 +93,9 @@ _otel_record_pipes() {
   || ( \[ -c /dev/"$2" ] && otel_span_attribute_typed "$1" string pipe."$2".type=device ) \
   || ( \[ -b /dev/"$2" ] && otel_span_attribute_typed "$1" string pipe."$2".type=block  ) \
   || otel_span_attribute_typed "$1" string pipe."$2".type=unknown
-  otel_span_attribute_typed "$1" int pipe."$2".bytes="$(\cat "$4")"
-  otel_span_attribute_typed "$1" int pipe."$2".lines="$(\cat "$5")"
+  local bytes lines
+  \read bytes < "$4"
+  \read lines < "$5"
+  otel_span_attribute_typed "$1" int pipe."$2".bytes="$bytes"
+  otel_span_attribute_typed "$1" int pipe."$2".lines="$lines"
 }

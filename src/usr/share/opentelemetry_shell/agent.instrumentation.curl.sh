@@ -7,11 +7,12 @@ _otel_propagate_curl() {
     *m*) local job_control=1; \set +m;;
     *) local job_control=0;;
   esac
-  if \[ -f /opt/opentelemetry_shell/libinjecthttpheader.so ] && ! ( \[ "$_otel_shell" = 'busybox sh' ] && \help | \tail -n +3 | \grep -q curl ); then
+  local file=/usr/share/opentelemetry_shell/agent.instrumentation.http/"$(\arch)"/libinjecthttpheader.so
+  if \[ -f "$file" ] && ! \ldd "$file" 2> /dev/null | \grep -q 'not found' && ! ( \[ "$_otel_shell" = 'busybox sh' ] && \help | \tail -n +3 | \grep -q curl ); then
     export OTEL_SHELL_INJECT_HTTP_SDK_PIPE="$_otel_remote_sdk_pipe"
-    export OTEL_SHELL_INJECT_HTTP_HANDLE_FILE="$(\mktemp -u)_opentelemetry_shell_$$.curl.handle)"
+    export OTEL_SHELL_INJECT_HTTP_HANDLE_FILE="$(\mktemp -u)_opentelemetry_shell_$$.curl.handle"
     local OLD_LD_PRELOAD="${LD_PRELOAD:-}"
-    export LD_PRELOAD=/opt/opentelemetry_shell/libinjecthttpheader.so
+    export LD_PRELOAD="$file"
     if \[ -n "$OLD_LD_PRELOAD" ]; then
       export LD_PRELOAD="$LD_PRELOAD:$OLD_LD_PRELOAD"
     fi
@@ -19,7 +20,7 @@ _otel_propagate_curl() {
   if _otel_string_contains "$(_otel_dollar_star "$@")" " -v "; then local is_verbose=1; else local is_verbose=0; fi
   local stderr_pipe="$(\mktemp -u)_opentelemetry_shell_$$.stderr.curl.pipe"
   \mkfifo "$stderr_pipe"
-  _otel_pipe_curl_stderr "$is_verbose" "$OTEL_SHELL_INJECT_HTTP_HANDLE_FILE" < "$stderr_pipe" >&2 &
+  _otel_pipe_curl_stderr "$is_verbose" "${OTEL_SHELL_INJECT_HTTP_HANDLE_FILE:-}" < "$stderr_pipe" >&2 &
   local stderr_pid="$!"
   local exit_code=0
   _otel_call "$@" -H "traceparent: $TRACEPARENT" -H "tracestate: $TRACESTATE" -v --no-progress-meter 2> "$stderr_pipe" || exit_code="$?"
@@ -72,13 +73,20 @@ _otel_pipe_curl_stderr() {
   local port=""
   local is_receiving=1
   while \read -r line; do
-    if _otel_string_starts_with "$line" "* Connected to "; then
+    if _otel_string_starts_with "$line" "* Connected to "; then # * Connected to www.google.at (142.250.185.131) port 80
       local host="$(\printf '%s' "$line" | \cut -d ' ' -f 4)"
       local ip="$(\printf '%s' "$line" | \cut -d ' ' -f 5 | \tr -d '()')"
       local port="$(\printf '%s' "$line" | \cut -d ' ' -f 7)"
+    elif _otel_string_starts_with "$line" "* Established connection to "; then # * Established connection to www.google.com (172.217.18.4 port 443) from 172.31.41.64 port 39476
+      local host="$(\printf '%s' "$line" | \cut -d ' ' -f 5)"
+      local ip="$(\printf '%s' "$line" | \cut -d ' ' -f 6 | \tr -d '()')"
+      local port="$(\printf '%s' "$line" | \cut -d ' ' -f 8 | \tr -d '()')"
     fi
-    if \[ -n "$span_handle" ] && _otel_string_starts_with "$line" "* processing: "; then otel_span_end "$span_handle"; local span_handle=""; fi
+    if \[ -n "$span_handle" ] && _otel_string_starts_with "$line" "* shutting down connection "; then otel_span_end "$span_handle"; local span_handle=""; fi
+    if \[ -n "$span_handle" ] && _otel_string_starts_with "$line" "* closing connection "; then otel_span_end "$span_handle"; local span_handle=""; fi
+    if \[ -n "$span_handle" ] && _otel_string_starts_with "$line" "* Connection " && _otel_string_ends_with "$line" " left intact"; then otel_span_end "$span_handle"; local span_handle=""; fi
     if \[ -n "$span_handle" ] && _otel_string_starts_with "$line" "* Connected to "; then otel_span_end "$span_handle"; local span_handle=""; fi
+    if \[ -n "$span_handle" ] && _otel_string_starts_with "$line" "* processing: "; then otel_span_end "$span_handle"; local span_handle=""; fi
     if \[ -n "$span_handle" ] && \[ "$is_receiving" = 1 ] && _otel_string_starts_with "$line" "> "; then otel_span_end "$span_handle"; local span_handle=""; fi
     if \[ -z "$span_handle" ] && \[ -n "$host" ] && \[ -n "$ip" ] && \[ -n "$port" ] && _otel_string_starts_with "$line" "> " && \[ "$is_receiving" = 1 ]; then
       local is_receiving=0
