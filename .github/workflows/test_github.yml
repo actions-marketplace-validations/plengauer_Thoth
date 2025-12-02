@@ -158,7 +158,7 @@ jobs:
         env:
           OTEL_SHELL_CONFIG_GITHUB_INJECT_ON_MAIN: 'TRUE'
           OTEL_SHELL_SDK_OUTPUT_REDIRECT: /dev/null
-      - uses: plengauer/autoversion@v2.1.0
+      - uses: plengauer/autoversion@v2.1.2
         with:
           github_token: ${{ github.token }}
           path_exclude: ./
@@ -190,19 +190,19 @@ jobs:
           RENOVATE_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RENOVATE_REPOSITORIES: ${{ github.repository }}
           LOG_LEVEL: debug
-      - uses: github/codeql-action/init@v4.31.4 # node action will call java will call node
+      - uses: github/codeql-action/init@v4.31.5 # node action will call java will call node
         with:
           languages: javascript-typescript
           build-mode: none
-      - uses: github/codeql-action/analyze@v4.31.4 # node action will call java will call node
+      - uses: github/codeql-action/analyze@v4.31.5 # node action will call java will call node
         with:
           category: "/language:javascript-typescript"
           upload: never
-      - uses: github/codeql-action/init@v4.31.4
+      - uses: github/codeql-action/init@v4.31.5
         with:
           languages: python
           build-mode: none
-      - uses: github/codeql-action/analyze@v4.31.4 # node action will call java will call python
+      - uses: github/codeql-action/analyze@v4.31.5 # node action will call java will call python
         with:
           category: "/language:python"
           upload: never
@@ -586,6 +586,37 @@ jobs:
           cat "$OTLP_JSON" | jq -r .name | grep -v '^null$' | sort -u | grep 'Set up job'
           cat "$OTLP_JSON" | jq -r .name | grep -v '^null$' | sort -u | grep 'Complete job'
           # cat "$OTLP_JSON" | jq -r .body | grep -v '^null$' | sort -u | grep 'Cleaning up orphan processes'
+  checksuite-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@v5.0.1
+        with:
+          ref: ${{ inputs.ref }}
+      - uses: actions/download-artifact@v6.0.0
+        with:
+          name: packages_${{ inputs.ref }}
+      - id: check_suite
+        run: |
+          curl -L --no-progress-meter --fail --retry 16 -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" "${GITHUB_API_URL:-https://api.github.com}"/repos/"$GITHUB_REPOSITORY"/branches'?per_page=100&page=1' | jq '.[].name' -r \
+           | xargs -I '{}' curl -L --no-progress-meter --fail --retry 16 -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" "${GITHUB_API_URL:-https://api.github.com}"/repos/"$GITHUB_REPOSITORY"/commits/'{}'/check-suites'?per_page=100&page=1' | jq --unbuffered '.check_suites[] | select(.app.slug == "github-actions" | not) | .id' -r | tail -n 1 | {
+            read -r id
+            echo "id=$id" >> "$GITHUB_OUTPUT"
+          }
+      - run: |
+          [ -n "${{ steps.check_suite.outputs.id }}" ]
+      - uses: ./actions/instrument/checksuite
+        with:
+          check_suite_id: ${{ steps.check_suite.outputs.id }}
+          cache: false
+        env:
+          OTEL_METRICS_EXPORTER: console
+          OTEL_LOGS_EXPORTER: console
+          OTEL_TRACES_EXPORTER: console
+          OTEL_SHELL_SDK_OUTPUT_REDIRECT: /dev/null
   deploy-smoke:
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -621,7 +652,7 @@ jobs:
       REPOSITORY_TEMPLATE: thoth-deploy-test-repository-${{ matrix.private  }}-${{ matrix.secret_redaction_strategy }}
       ASSERT_RECEIVING_DATA: 'false'
     steps:
-      - uses: plengauer/opentelemetry-github/actions/instrument/job@v5.36.0
+      - uses: plengauer/opentelemetry-github/actions/instrument/job@v5.37.0
         with:
           secrets_to_redact: '["${{ github.token }}","${{ secrets.ACTIONS_GITHUB_TOKEN }}","${{ secrets.TEST_GITHUB_TOKEN }}"]'
         env:
@@ -672,7 +703,7 @@ jobs:
           yq -i '.jobs.deploy.steps[0].env.OTEL_EXPORTER_OTLP_ENDPOINT = "http://'"$(curl 'https://api.ipify.org?format=json' | jq -r .ip)"':8080"' .github/workflows/deploy_otel.yml
           git add . && git commit --message "added deploy action" && git push
       - run: |
-          while ! cat .github/workflows/test.yml | yq '.jobs.hello-world.steps[].uses' | grep -q '/actions/instrument/job@' || ! cat .github/workflows/observability.yml | yq '.jobs.export.steps[].uses' | grep -q '/actions/instrument/workflow@'; do
+          while ! cat .github/workflows/test.yml | yq '.jobs.hello-world.steps[].uses' | grep -q '/actions/instrument/job@' || ! cat .github/workflows/observability_workflow.yml | yq '.jobs.export.steps[].uses' | grep -q '/actions/instrument/workflow@'; do
             sleep 10 && git pull
           done
       - run: |

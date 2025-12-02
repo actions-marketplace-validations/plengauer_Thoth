@@ -15,7 +15,14 @@ jobs:
       refs: ${{ steps.dynamic.outputs.refs }}
     permissions:
       contents: read
+      actions: read
     steps:
+      - uses: plengauer/opentelemetry-github/actions/instrument/job@v5.37.0
+        env:
+          OTEL_EXPORTER_OTLP_ENDPOINT: ${{ secrets.OTEL_EXPORTER_OTLP_ENDPOINT }}
+          OTEL_EXPORTER_OTLP_HEADERS: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
+        with:
+          secrets_to_redact: '["${{ github.token }}"]'
       - uses: actions/checkout@v5.0.1
         with:
           fetch-depth: 0
@@ -28,7 +35,7 @@ jobs:
             fi
           done | while read -r ref; do echo \""$ref"\"; done | jq -s | tr -d '\n' | tr -d ' ' | xargs -0 -I {} echo 'refs={}' >> "$GITHUB_OUTPUT"
   
-  test:
+  ci:
     needs: setup
     strategy:
       matrix:
@@ -49,12 +56,12 @@ jobs:
       security-events: none
       statuses: none
     secrets: inherit
-    uses: ./.github/workflows/test.yml
+    uses: ./.github/workflows/ci.yml
     with:
       ref: ${{ matrix.ref }}
     
   publish:
-    needs: [ setup, test ]
+    needs: [ setup, ci ]
     strategy:
       matrix:
         ref: ${{ fromJSON(needs.setup.outputs.refs) }}
@@ -65,7 +72,7 @@ jobs:
       id-token: write
       attestations: write
     steps:
-      - uses: plengauer/opentelemetry-github/actions/instrument/job@v5.36.0
+      - uses: plengauer/opentelemetry-github/actions/instrument/job@v5.37.0
         with:
           secrets_to_redact: '["${{ github.token }}","${{ secrets.ACTIONS_GITHUB_TOKEN }}"]'
         env:
