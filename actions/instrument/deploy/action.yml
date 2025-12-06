@@ -61,7 +61,7 @@ runs:
       shell: bash
       run: type yq || (sudo apt-get update && sudo apt-get -y install yq)
     - name: "Checkout"
-      uses: actions/checkout@v5.0.1
+      uses: actions/checkout@v6.0.1
       with:
         token: ${{ inputs.github_token }}
     - name: "Find self"
@@ -318,7 +318,7 @@ runs:
     - name: "Open Pull Request"
       if: ${{ inputs.dry_run != 'true' }}
       id: open-pr
-      uses: peter-evans/create-pull-request@v7.0.9
+      uses: peter-evans/create-pull-request@v7.0.11
       with:
         token: ${{ inputs.github_token }}
         branch: "deploy-otel"
