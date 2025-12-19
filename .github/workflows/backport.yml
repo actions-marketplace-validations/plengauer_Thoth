@@ -6,14 +6,14 @@ on:
 jobs:
   setup:
     if: ${{ !github.event.repository.fork }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim
     outputs:
       refs: ${{ steps.dynamic.outputs.refs }}
     permissions:
       contents: read
       actions: read
     steps:
-      - uses: plengauer/opentelemetry-github/actions/instrument/job@v5.37.2
+      - uses: plengauer/opentelemetry-github/actions/instrument/job@v5.38.0
         env:
           OTEL_EXPORTER_OTLP_ENDPOINT: ${{ secrets.OTEL_EXPORTER_OTLP_ENDPOINT }}
           OTEL_EXPORTER_OTLP_HEADERS: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
@@ -37,14 +37,14 @@ jobs:
     strategy:
       matrix:
         ref: ${{ fromJSON(needs.setup.outputs.refs) }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim
     permissions:
       contents: write
       pull-requests: read
       issues: read
       actions: read
     steps:
-      - uses: plengauer/opentelemetry-github/actions/instrument/job@v5.37.2
+      - uses: plengauer/opentelemetry-github/actions/instrument/job@v5.38.0
         env:
           OTEL_EXPORTER_OTLP_ENDPOINT: ${{ secrets.OTEL_EXPORTER_OTLP_ENDPOINT }}
           OTEL_EXPORTER_OTLP_HEADERS: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}

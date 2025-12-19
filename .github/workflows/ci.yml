@@ -46,14 +46,14 @@ jobs:
     secrets: inherit
   join:
     needs: [shell, github]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim
     outputs:
       success: ${{ steps.tests.outputs.success }}
     permissions:
       contents: none
       actions: read
     steps:
-      - uses: plengauer/opentelemetry-github/actions/instrument/job@v5.37.2
+      - uses: plengauer/opentelemetry-github/actions/instrument/job@v5.38.0
         env:
           OTEL_EXPORTER_OTLP_ENDPOINT: ${{ secrets.OTEL_EXPORTER_OTLP_ENDPOINT }}
           OTEL_EXPORTER_OTLP_HEADERS: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
@@ -64,12 +64,12 @@ jobs:
   all:
     if: ${{ success() || failure() }} # this is because we need this to fail and not skipped to avoid PRs getting merged without this passing
     needs: join
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim
     permissions:
       contents: none
       actions: read
     steps:
-      - uses: plengauer/opentelemetry-github/actions/instrument/job@v5.37.2
+      - uses: plengauer/opentelemetry-github/actions/instrument/job@v5.38.0
         env:
           OTEL_EXPORTER_OTLP_ENDPOINT: ${{ secrets.OTEL_EXPORTER_OTLP_ENDPOINT }}
           OTEL_EXPORTER_OTLP_HEADERS: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}

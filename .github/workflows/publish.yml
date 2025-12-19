@@ -10,14 +10,14 @@ on:
 jobs:
 
   setup:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim
     outputs:
       refs: ${{ steps.dynamic.outputs.refs }}
     permissions:
       contents: read
       actions: read
     steps:
-      - uses: plengauer/opentelemetry-github/actions/instrument/job@v5.37.2
+      - uses: plengauer/opentelemetry-github/actions/instrument/job@v5.38.0
         env:
           OTEL_EXPORTER_OTLP_ENDPOINT: ${{ secrets.OTEL_EXPORTER_OTLP_ENDPOINT }}
           OTEL_EXPORTER_OTLP_HEADERS: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
@@ -65,14 +65,14 @@ jobs:
     strategy:
       matrix:
         ref: ${{ fromJSON(needs.setup.outputs.refs) }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim
     permissions:
       actions: read
       contents: write
       id-token: write
       attestations: write
     steps:
-      - uses: plengauer/opentelemetry-github/actions/instrument/job@v5.37.2
+      - uses: plengauer/opentelemetry-github/actions/instrument/job@v5.38.0
         with:
           secrets_to_redact: '["${{ github.token }}","${{ secrets.ACTIONS_GITHUB_TOKEN }}"]'
         env:
@@ -87,15 +87,15 @@ jobs:
       - uses: actions/download-artifact@v7.0.0
         with:
           name: packages_${{ matrix.ref }}
-      - uses: actions/attest-build-provenance@v3.0.0
+      - uses: actions/attest-build-provenance@v3.1.0
         with:
           subject-path: ./package.deb
           subject-name: opentelemetry-shell_${{ steps.version.outputs.version }}.deb
-      - uses: actions/attest-build-provenance@v3.0.0
+      - uses: actions/attest-build-provenance@v3.1.0
         with:
           subject-path: ./package.rpm
           subject-name: opentelemetry-shell_${{ steps.version.outputs.version }}.rpm
-      - uses: actions/attest-build-provenance@v3.0.0
+      - uses: actions/attest-build-provenance@v3.1.0
         with:
           subject-path: ./package.apk
           subject-name: opentelemetry-shell_${{ steps.version.outputs.version }}.apk
@@ -118,7 +118,7 @@ jobs:
               sudo docker image tag "$image_name" "$tag_full"
             done
             sudo docker image remove "$image_name"
-            sudo docker push "$tag_full" --all-tags
+            sudo docker push "ghcr.io/${GITHUB_REPOSITORY%/*}/$image_name" --all-tags
           done
       - run: |
           gh release create "v${{ steps.version.outputs.version }}" \
