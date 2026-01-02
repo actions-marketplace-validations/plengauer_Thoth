@@ -9,6 +9,23 @@ on:
 
 jobs:
 
+  verify-scripts:
+    runs-on: ubuntu-slim
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: plengauer/opentelemetry-github/actions/instrument/job@v5.41.0
+        env:
+          OTEL_EXPORTER_OTLP_ENDPOINT: ${{ secrets.OTEL_EXPORTER_OTLP_ENDPOINT }}
+          OTEL_EXPORTER_OTLP_HEADERS: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
+        with:
+          secrets_to_redact: '["${{ github.token }}"]'
+      - uses: actions/checkout@v6.0.1
+        with:
+          ref: ${{ inputs.ref }}
+      - run: find . -iname '*.sh' -exec bash -n '{}' ';'
+
   build-http:
     runs-on: ubuntu-latest
     strategy:
@@ -19,7 +36,7 @@ jobs:
       contents: read
       actions: read
     steps:
-      - uses: plengauer/opentelemetry-github/actions/instrument/job@v5.38.2
+      - uses: plengauer/opentelemetry-github/actions/instrument/job@v5.41.0
         env:
           OTEL_EXPORTER_OTLP_ENDPOINT: ${{ secrets.OTEL_EXPORTER_OTLP_ENDPOINT }}
           OTEL_EXPORTER_OTLP_HEADERS: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
@@ -61,7 +78,7 @@ jobs:
       contents: read
       actions: read
     steps:
-      - uses: plengauer/opentelemetry-github/actions/instrument/job@v5.38.2
+      - uses: plengauer/opentelemetry-github/actions/instrument/job@v5.41.0
         env:
           OTEL_EXPORTER_OTLP_ENDPOINT: ${{ secrets.OTEL_EXPORTER_OTLP_ENDPOINT }}
           OTEL_EXPORTER_OTLP_HEADERS: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
@@ -90,7 +107,7 @@ jobs:
       contents: read
       actions: read
     steps:
-      - uses: plengauer/opentelemetry-github/actions/instrument/job@v5.38.2
+      - uses: plengauer/opentelemetry-github/actions/instrument/job@v5.41.0
         env:
           OTEL_EXPORTER_OTLP_ENDPOINT: ${{ secrets.OTEL_EXPORTER_OTLP_ENDPOINT }}
           OTEL_EXPORTER_OTLP_HEADERS: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
@@ -115,7 +132,7 @@ jobs:
       contents: read
       actions: read
     steps:
-      - uses: plengauer/opentelemetry-github/actions/instrument/job@v5.38.2
+      - uses: plengauer/opentelemetry-github/actions/instrument/job@v5.41.0
         env:
           OTEL_EXPORTER_OTLP_ENDPOINT: ${{ secrets.OTEL_EXPORTER_OTLP_ENDPOINT }}
           OTEL_EXPORTER_OTLP_HEADERS: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
@@ -146,7 +163,7 @@ jobs:
       contents: read
       actions: read
     steps:
-      - uses: plengauer/opentelemetry-github/actions/instrument/job@v5.38.2
+      - uses: plengauer/opentelemetry-github/actions/instrument/job@v5.41.0
         env:
           OTEL_EXPORTER_OTLP_ENDPOINT: ${{ secrets.OTEL_EXPORTER_OTLP_ENDPOINT }}
           OTEL_EXPORTER_OTLP_HEADERS: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
@@ -176,7 +193,7 @@ jobs:
       contents: read
       actions: read
     steps:
-      - uses: plengauer/opentelemetry-github/actions/instrument/job@v5.38.2
+      - uses: plengauer/opentelemetry-github/actions/instrument/job@v5.41.0
         env:
           OTEL_EXPORTER_OTLP_ENDPOINT: ${{ secrets.OTEL_EXPORTER_OTLP_ENDPOINT }}
           OTEL_EXPORTER_OTLP_HEADERS: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
@@ -205,7 +222,7 @@ jobs:
       contents: read
       actions: read
     steps:
-      - uses: plengauer/opentelemetry-github/actions/instrument/job@v5.38.2
+      - uses: plengauer/opentelemetry-github/actions/instrument/job@v5.41.0
         env:
           OTEL_EXPORTER_OTLP_ENDPOINT: ${{ secrets.OTEL_EXPORTER_OTLP_ENDPOINT }}
           OTEL_EXPORTER_OTLP_HEADERS: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
@@ -250,7 +267,7 @@ jobs:
       contents: read
       actions: read
     steps:
-      - uses: plengauer/opentelemetry-github/actions/instrument/job@v5.38.2
+      - uses: plengauer/opentelemetry-github/actions/instrument/job@v5.41.0
         env:
           OTEL_EXPORTER_OTLP_ENDPOINT: ${{ secrets.OTEL_EXPORTER_OTLP_ENDPOINT }}
           OTEL_EXPORTER_OTLP_HEADERS: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
@@ -275,7 +292,7 @@ jobs:
   build-java-agents:
     runs-on: ubuntu-latest
     steps:
-      - uses: plengauer/opentelemetry-github/actions/instrument/job@v5.38.2
+      - uses: plengauer/opentelemetry-github/actions/instrument/job@v5.41.0
         env:
           OTEL_EXPORTER_OTLP_ENDPOINT: ${{ secrets.OTEL_EXPORTER_OTLP_ENDPOINT }}
           OTEL_EXPORTER_OTLP_HEADERS: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
@@ -344,7 +361,7 @@ jobs:
       contents: read
       actions: read
     steps:
-      - uses: plengauer/opentelemetry-github/actions/instrument/job@v5.38.2
+      - uses: plengauer/opentelemetry-github/actions/instrument/job@v5.41.0
         with:
           secrets_to_redact: '["${{ github.token }}"]'
         env:
@@ -368,7 +385,7 @@ jobs:
       contents: read
       actions: read
     steps:
-      - uses: plengauer/opentelemetry-github/actions/instrument/job@v5.38.2
+      - uses: plengauer/opentelemetry-github/actions/instrument/job@v5.41.0
         env:
           OTEL_EXPORTER_OTLP_ENDPOINT: ${{ secrets.OTEL_EXPORTER_OTLP_ENDPOINT }}
           OTEL_EXPORTER_OTLP_HEADERS: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
@@ -400,13 +417,13 @@ jobs:
           }
           find meta/debian | grep -vE '^meta/debian$|^meta/debian/control$|^meta/debian/triggers$' | verify '^Pre-Depends:' && find src -iname '*.sh' | verify '^Pre-Depends:|^Depends:|^Recommends:|^Suggests:'
   build-deb:
-    needs: [verify-deb-dependencies, verify-deb-python-dependency, merge-http, merge-node-modules, merge-python-site-packages, build-java-agents]
+    needs: [verify-scripts, verify-deb-dependencies, verify-deb-python-dependency, merge-http, merge-node-modules, merge-python-site-packages, build-java-agents]
     runs-on: ubuntu-latest
     permissions:
       contents: read
       actions: read
     steps:
-      - uses: plengauer/opentelemetry-github/actions/instrument/job@v5.38.2
+      - uses: plengauer/opentelemetry-github/actions/instrument/job@v5.41.0
         env:
           OTEL_EXPORTER_OTLP_ENDPOINT: ${{ secrets.OTEL_EXPORTER_OTLP_ENDPOINT }}
           OTEL_EXPORTER_OTLP_HEADERS: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
@@ -457,7 +474,7 @@ jobs:
       contents: read
       actions: read
     steps:
-      - uses: plengauer/opentelemetry-github/actions/instrument/job@v5.38.2
+      - uses: plengauer/opentelemetry-github/actions/instrument/job@v5.41.0
         with:
           secrets_to_redact: '["${{ github.token }}"]'
         env:
@@ -476,13 +493,13 @@ jobs:
           min_version_shell="$(cat meta/rpm/*.spec | grep '^Requires:' | tr ',' '\n' | grep -F -- 'python3 >=' | cut -d '=' -f 2- | cut -d . -f 2)"
           [ "$min_version_shell" -ge "$min_version_otel" ] || (echo "::error::Minimum version is $min_version_shell but otel requires at least $min_version_otel!" && exit 1)
   build-rpm:
-    needs: [verify-rpm-python-dependency, merge-http, merge-node-modules, merge-python-site-packages, build-java-agents]
+    needs: [verify-scripts, verify-rpm-python-dependency, merge-http, merge-node-modules, merge-python-site-packages, build-java-agents]
     runs-on: ubuntu-latest
     permissions:
       contents: read
       actions: read
     steps:
-      - uses: plengauer/opentelemetry-github/actions/instrument/job@v5.38.2
+      - uses: plengauer/opentelemetry-github/actions/instrument/job@v5.41.0
         env:
           OTEL_EXPORTER_OTLP_ENDPOINT: ${{ secrets.OTEL_EXPORTER_OTLP_ENDPOINT }}
           OTEL_EXPORTER_OTLP_HEADERS: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
@@ -553,13 +570,13 @@ jobs:
           path: package.rpm
 
   build-apk:
-    needs: [merge-node-modules, merge-python-site-packages, build-java-agents]
+    needs: [verify-scripts, merge-node-modules, merge-python-site-packages, build-java-agents]
     runs-on: ubuntu-latest
     permissions:
       contents: read
       actions: read
     steps:
-      - uses: plengauer/opentelemetry-github/actions/instrument/job@v5.38.2
+      - uses: plengauer/opentelemetry-github/actions/instrument/job@v5.41.0
         env:
           OTEL_EXPORTER_OTLP_ENDPOINT: ${{ secrets.OTEL_EXPORTER_OTLP_ENDPOINT }}
           OTEL_EXPORTER_OTLP_HEADERS: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
@@ -610,7 +627,7 @@ jobs:
       contents: read
       actions: read
     steps:
-      - uses: plengauer/opentelemetry-github/actions/instrument/job@v5.38.2
+      - uses: plengauer/opentelemetry-github/actions/instrument/job@v5.41.0
         env:
           OTEL_EXPORTER_OTLP_ENDPOINT: ${{ secrets.OTEL_EXPORTER_OTLP_ENDPOINT }}
           OTEL_EXPORTER_OTLP_HEADERS: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
@@ -626,13 +643,13 @@ jobs:
           path: package.*
 
   build-workflow-image:
-    needs: [build-deb]
+    needs: [build-apk]
     runs-on: ubuntu-latest
     permissions:
       contents: read
       actions: read
     steps:
-      - uses: plengauer/opentelemetry-github/actions/instrument/job@v5.38.2
+      - uses: plengauer/opentelemetry-github/actions/instrument/job@v5.41.0
         env:
           OTEL_EXPORTER_OTLP_ENDPOINT: ${{ secrets.OTEL_EXPORTER_OTLP_ENDPOINT }}
           OTEL_EXPORTER_OTLP_HEADERS: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
@@ -643,14 +660,14 @@ jobs:
           ref: ${{ inputs.ref }}
       - uses: actions/download-artifact@v7.0.0
         with:
-          name: package.deb_${{ inputs.ref }}
+          name: package.apk_${{ inputs.ref }}
       - run: |
-          cp package.deb actions/instrument/workflow
+          cp package.apk actions/instrument/workflow
           pushd actions/instrument/workflow
           sudo docker build --build-arg=repository="$GITHUB_REPOSITORY" --network host --tag opentelemetry-github-workflow-instrumentation-runner .
           popd
           sudo docker save opentelemetry-github-workflow-instrumentation-runner > opentelemetry-github-workflow-instrumentation-runner.image
-          rm actions/instrument/workflow/package.deb
+          rm actions/instrument/workflow/package.apk
       - uses: actions/upload-artifact@v6.0.0
         with:
           name: images_${{ inputs.ref }}

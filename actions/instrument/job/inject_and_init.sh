@@ -24,6 +24,12 @@ export OTEL_SHELL_CONFIG_OBSERVE_SIGNALS="${OTEL_SHELL_CONFIG_OBSERVE_SIGNALS:-T
 . ../shared/config_validation.sh
 echo "::endgroup::"
 
+. ../shared/github.sh
+
+echo "::group::Ensuring rate limit"
+gh_ensure_min_rate_limit_remaining 0.05
+echo "::endgroup::"
+
 if [ "${OTEL_LOGS_EXPORTER:-otlp}" = deferred ]; then
   export OTEL_LOGS_EXPORTER=otlp
   export OTEL_EXPORTER_OTLP_LOGS_ENDPOINT=http://localhost:4320/v1/logs
@@ -97,7 +103,7 @@ fi
 bash -e -o pipefail ../shared/install.sh perl curl wget jq sed unzip parallel 'node;nodejs' npm 'gcc;build-essential' lsof
 if ! type otelcol-contrib; then
   if ! [ -r /var/cache/apt/archives/otelcol-contrib.deb ]; then
-    GITHUB_REPOSITORY=open-telemetry/opentelemetry-collector-releases gh_curl /releases/tags/v"$(cat Dockerfile | grep '^FROM ' | cut -d ' ' -f 2- | cut -d : -f 2)" | jq '.assets[] | select(.name | endswith(".deb")) | [ .name, .url ] | @tsv' -r | grep contrib | grep linux | grep "$(arch | sed 's/x86_64/amd64/g')" | head -n 1 | cut -d $'\t' -f 2 \
+    GITHUB_REPOSITORY=open-telemetry/opentelemetry-collector-releases gh_release v"$(cat Dockerfile | grep '^FROM ' | cut -d ' ' -f 2- | cut -d : -f 2)" | jq '.assets[] | select(.name | endswith(".deb")) | [ .name, .url ] | @tsv' -r | grep contrib | grep linux | grep "$(arch | sed 's/x86_64/amd64/g')" | head -n 1 | cut -d $'\t' -f 2 \
       | xargs -I '{}' wget -q --header "Authorization: Bearer $INPUT_GITHUB_TOKEN" --header "Accept: application/octet-stream" '{}' -O - | sudo tee /var/cache/apt/archives/otelcol-contrib.deb > /dev/null
   fi
   if [ "${FAST_DEB_INSTALL:-FALSE}" = TRUE ]; then # lets assume no install scripts or dependencies or triggers
