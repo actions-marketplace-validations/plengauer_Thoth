@@ -22,6 +22,9 @@ export OTEL_SHELL_CONFIG_OBSERVE_PIPES="${OTEL_SHELL_CONFIG_OBSERVE_PIPES:-TRUE}
 export OTEL_SHELL_CONFIG_OBSERVE_SUBPROCESSES="${OTEL_SHELL_CONFIG_OBSERVE_SUBPROCESSES:-TRUE}"
 export OTEL_SHELL_CONFIG_OBSERVE_SIGNALS="${OTEL_SHELL_CONFIG_OBSERVE_SIGNALS:-TRUE}"
 . ../shared/config_validation.sh
+if ! jq . <<< "$INPUT_SECRETS_TO_REDACT" 1> /dev/null 2> /dev/null; then
+  export INPUT_SECRETS_TO_REDACT="$(printf '%s' "$INPUT_SECRETS_TO_REDACT" | ( grep -v '^$' || true ) | jq -R | jq -s)"
+fi
 echo "::endgroup::"
 
 . ../shared/github.sh
@@ -115,7 +118,7 @@ if ! type otelcol-contrib; then
 fi
 if [ "${write_back_cache:-FALSE}" = TRUE ] && [ -n "${cache_key:-}" ]; then
   wait # only join in case we wanna write back, this will be rare and is necessary to have a good cache
-  ( sudo -E -H node -e "require('@actions/cache').saveCache(['/var/cache/apt/archives/*.deb', '/root/.cache/pip'], '$cache_key');" &> /dev/null & )
+  run sudo -E -H node -e "require('@actions/cache').saveCache(['/var/cache/apt/archives/*.deb', '/root/.cache/pip'], '$cache_key');"
 fi
 echo "::endgroup::"
 
