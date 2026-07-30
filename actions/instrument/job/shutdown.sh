@@ -1,5 +1,8 @@
 #!/bin/sh
 set -e
+if [ -n "${STATE_disabled:-}" ] || [ -z "${STATE_pid:-}" ]; then
+  exit 0
+fi
 if [ "$INPUT___JOB_STATUS" = failure ]; then
   touch /tmp/opentelemetry_shell.github.error
 fi

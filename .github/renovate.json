@@ -2,7 +2,8 @@
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
     "config:recommended",
-    "mergeConfidence:all-badges"
+    "mergeConfidence:all-badges",
+    "helpers:pinGitHubActionDigests"
   ],
   "configMigration": true,
   "prHourlyLimit": 0,
@@ -17,7 +18,18 @@
       ],
       "ignoreUnstable": false,
       "matchPackageNames": [
-        "/^opentelemetry-/"
+        "/^opentelemetry-/",
+        "/^traceloop-/"
+      ]
+    },
+    {
+      "groupName": "opentelemetry-js monorepo",
+      "matchManagers": [
+        "npm"
+      ],
+      "matchPackageNames": [
+        "/^@opentelemetry\\//",
+        "/^@traceloop\\//"
       ]
     },
     {
@@ -28,6 +40,24 @@
       "matchPackageNames": [
         "/.*/"
       ]
+    },
+    {
+      "matchManagers": [
+        "github-actions"
+      ],
+      "matchPackageNames": [
+        "/^\\$\\{\\{\\s*steps\\.determine-repository\\.outputs\\.repository\\s*\\}\\}\\/actions$/"
+      ],
+      "enabled": false
+    },
+    {
+      "matchManagers": [
+        "dockerfile"
+      ],
+      "matchPackageNames": [
+        "node"
+      ],
+      "ignoreUnstable": false
     }
   ],
   "customManagers": [

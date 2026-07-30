@@ -1,7 +1,7 @@
 name: Autorerun
 on:
   workflow_run:
-    workflows: ['Test', 'Publish', 'Refresh Demos', 'Workflow Example', 'Backport']
+    workflows: ['Test', 'Publish', 'Refresh Demos', 'Workflow Example', 'Autobackport']
     types: completed
   schedule:
     - cron: '0 0 * * *'
@@ -14,14 +14,18 @@ jobs:
       contents: none
       actions: read
     steps:
-      - uses: plengauer/opentelemetry-github/actions/instrument/job@v5.42.2
+      - uses: plengauer/opentelemetry-github/actions/instrument/job@2169fb0fa9a8260fde99a2a185bbf99a5d63546e # v5.59.0
         with:
           secrets_to_redact: '["${{ github.token }}","${{ secrets.ACTIONS_GITHUB_TOKEN }}"]'
         env:
           OTEL_EXPORTER_OTLP_ENDPOINT: '${{ secrets.OTEL_EXPORTER_OTLP_ENDPOINT }}'
           OTEL_EXPORTER_OTLP_HEADERS: '${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}'
-      - uses: plengauer/autorerun@v0.37.0
+      - uses: plengauer/autorerun@01cbbd02fa9641d3e243b12190be63c7aa3a13c5 # v0.38.0
         with:
           github_token: ${{ secrets.ACTIONS_GITHUB_TOKEN }}
           custom_patterns: |
             fatal: 'v.*' is not a commit and a branch 'release/.*' cannot be created from it
+            jq: parse error: Invalid string: control characters from .* through .* must be escaped
+            debug: error authenticating with github
+            dial tcp .* i/o timeout
+            jq: error.*Cannot iterate over null

@@ -15,12 +15,12 @@ jobs:
       contents: read
       actions: read
     steps:
-      - uses: actions/checkout@v6.0.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.ref }}
-      - uses: actions/download-artifact@v7.0.0
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          name: packages_${{ inputs.ref }}
+          name: packages.deb.${{ inputs.ref }}
       - uses: ./actions/instrument/job
         with:
           cache: 'false'
@@ -35,21 +35,21 @@ jobs:
       contents: read
       actions: read
     steps:
-      - uses: actions/checkout@v6.0.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.ref }}
-      - uses: actions/download-artifact@v7.0.0
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          name: packages_${{ inputs.ref }}
+          name: packages.deb.${{ inputs.ref }}
       - uses: ./actions/instrument/job
         with:
           cache: 'false'
         env:
           OTEL_SHELL_CONFIG_GITHUB_INJECT_ON_MAIN: 'TRUE'
           OTEL_SHELL_SDK_OUTPUT_REDIRECT: /dev/null
-      - uses: actions/download-artifact@v7.0.0 # check if node action works
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1 # check if node action works
         with:
-          name: packages_${{ inputs.ref }}
+          name: packages.deb.${{ inputs.ref }}
   job-docker:
     needs: job-smoke
     runs-on: ubuntu-latest
@@ -58,26 +58,26 @@ jobs:
       contents: read
       actions: read
     steps:
-      - uses: actions/checkout@v6.0.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.ref }}
-      - uses: actions/download-artifact@v7.0.0
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          name: packages_${{ inputs.ref }}
+          name: packages.deb.${{ inputs.ref }}
       - uses: ./actions/instrument/job
         with:
           cache: 'false'
         env:
           OTEL_SHELL_CONFIG_GITHUB_INJECT_ON_MAIN: 'TRUE'
           OTEL_SHELL_SDK_OUTPUT_REDIRECT: /dev/null
-      - uses: actions/hello-world-docker-action@main # check if docker action works
-      - uses: docker/setup-qemu-action@v3.7.0 # some docker actions have otel built-in
-      - uses: docker/setup-buildx-action@v3.12.0 # some docker actions have otel built-in
-      - uses: actions/download-artifact@v7.0.0
+      - uses: actions/hello-world-docker-action@8bcd8e1af3c095561f1043123848fc8b2db0f189 # main # check if docker action works
+      - uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8 # v4.2.0 # some docker actions have otel built-in
+      - uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0 # some docker actions have otel built-in
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          name: packages_${{ inputs.ref }}
-      - run: cp package.deb tests/package.deb
-      - uses: docker/build-push-action@v6.18.0 # some docker actions have otel built-in
+          name: packages.deb.${{ inputs.ref }}
+      - run: cp opentelemetry-shell_*_*.deb tests
+      - uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0 # some docker actions have otel built-in
         with:
           context: ./tests/
           tags: test
@@ -94,12 +94,12 @@ jobs:
       contents: read
       actions: read
     steps:
-      - uses: actions/checkout@v6.0.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.ref }}
-      - uses: actions/download-artifact@v7.0.0
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          name: packages_${{ inputs.ref }}
+          name: packages.deb.${{ inputs.ref }}
       - uses: ./actions/instrument/job
         with:
           cache: 'false'
@@ -122,25 +122,26 @@ jobs:
       contents: read
       actions: read
     steps:
-      - uses: actions/checkout@v6.0.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.ref }}
-      - uses: actions/download-artifact@v7.0.0
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          name: packages_${{ inputs.ref }}
+          name: packages.deb.${{ inputs.ref }}
       - uses: ./actions/instrument/job
         with:
           cache: 'false'
         env:
           OTEL_SHELL_CONFIG_GITHUB_INJECT_ON_MAIN: 'TRUE'
           OTEL_SHELL_SDK_OUTPUT_REDIRECT: /dev/null
-      - uses: plengauer/autoversion@v2.3.0
+      - uses: plengauer/autoversion@badee98ba4eb3a38f99cf8acab7f5510e7e8736f # v5.0.0
         with:
           github_token: ${{ github.token }}
           path_exclude: ./
           working_directory: ./autoversion
           dry_run: 'true'
-  job-integration:
+          ref: main
+  job-dotnet:
     needs: job-smoke
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -148,51 +149,281 @@ jobs:
       contents: read
       actions: read
     steps:
-      - uses: actions/checkout@v6.0.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.ref }}
-      - uses: actions/download-artifact@v7.0.0
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          name: packages_${{ inputs.ref }}
+          name: packages.deb.${{ inputs.ref }}
       - uses: ./actions/instrument/job
         with:
           cache: 'false'
         env:
           OTEL_SHELL_CONFIG_GITHUB_INJECT_ON_MAIN: 'TRUE'
           OTEL_SHELL_SDK_OUTPUT_REDIRECT: /dev/null
-      - uses: renovatebot/github-action@v44.2.6 # node action with call to docker, docker flags that make injection more complicated, then call a node script via exec that already is injected with otel
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: 10
+      - run: dotnet --version
+  job-arm:
+    needs: job-smoke
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref }}
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: packages.deb.${{ inputs.ref }}
+      - uses: ./actions/instrument/job
+        with:
+          cache: 'false'
+        env:
+          OTEL_SHELL_CONFIG_GITHUB_INJECT_ON_MAIN: 'TRUE'
+          OTEL_SHELL_SDK_OUTPUT_REDIRECT: /dev/null
+      - run: echo hello world
+  job-arm-otelcol-contrib:
+    needs: job-smoke
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref }}
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: packages.deb.${{ inputs.ref }}
+      - uses: ./actions/instrument/job
+        with:
+          cache: 'false'
+        env:
+          OTEL_SHELL_CONFIG_GITHUB_INJECT_ON_MAIN: 'TRUE'
+          OTEL_SHELL_SDK_OUTPUT_REDIRECT: /dev/null
+      - run: |
+          type otelcol-contrib
+          otelcol-contrib --version
+  job-integration-simulated-opt-acl-modification:
+    needs: [job-smoke, job-cache ]
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref }}
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: packages.deb.${{ inputs.ref }}
+      - uses: ./actions/instrument/job
+        env:
+          OTEL_SHELL_CONFIG_GITHUB_INJECT_ON_MAIN: 'TRUE'
+          OTEL_SHELL_SDK_OUTPUT_REDIRECT: /dev/null
+      - run: touch /opt/helloworld
+  job-integration-renovate:
+    needs: job-smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      matrix:
+        run: [1, 2, 3]
+      fail-fast: false
+      max-parallel: 1
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref }}
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: packages.deb.${{ inputs.ref }}
+      - uses: ./actions/instrument/job
+        with:
+          cache: 'false'
+        env:
+          OTEL_SHELL_CONFIG_GITHUB_INJECT_ON_MAIN: 'TRUE'
+          OTEL_SHELL_SDK_OUTPUT_REDIRECT: /dev/null
+      - uses: renovatebot/github-action@3064367f740a1a91cca218698a63902689cce200 # v46.1.20 # node action with call to docker, docker flags that make injection more complicated, then call a node script via exec that already is injected with otel
         env:
           RENOVATE_DRY_RUN: full
           RENOVATE_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RENOVATE_REPOSITORIES: ${{ github.repository }}
-          LOG_LEVEL: debug
-      - uses: github/codeql-action/init@v4.32.2 # node action will call java will call node
+  job-integration-codeql:
+    needs: job-smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref }}
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: packages.deb.${{ inputs.ref }}
+      - uses: ./actions/instrument/job
+        with:
+          cache: 'false'
+        env:
+          OTEL_SHELL_CONFIG_GITHUB_INJECT_ON_MAIN: 'TRUE'
+          OTEL_SHELL_SDK_OUTPUT_REDIRECT: /dev/null
+      - uses: github/codeql-action/init@54f647b7e1bb85c95cddabcd46b0c578ec92bc1a # v4.36.3 # node action will call java will call node
         with:
           languages: javascript-typescript
           build-mode: none
-      - uses: github/codeql-action/analyze@v4.32.2 # node action will call java will call node
+      - uses: github/codeql-action/analyze@54f647b7e1bb85c95cddabcd46b0c578ec92bc1a # v4.36.3 # node action will call java will call node
         with:
           category: "/language:javascript-typescript"
           upload: never
-      - uses: github/codeql-action/init@v4.32.2
+      - uses: github/codeql-action/init@54f647b7e1bb85c95cddabcd46b0c578ec92bc1a # v4.36.3
         with:
           languages: python
           build-mode: none
-      - uses: github/codeql-action/analyze@v4.32.2 # node action will call java will call python
+      - uses: github/codeql-action/analyze@54f647b7e1bb85c95cddabcd46b0c578ec92bc1a # v4.36.3 # node action will call java will call python
         with:
           category: "/language:python"
           upload: never
+  job-integration-superlinter:
+    needs: job-smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref }}
+          fetch-depth: 0
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: packages.deb.${{ inputs.ref }}
+      - uses: ./actions/instrument/job
+        with:
+          cache: 'false'
+        env:
+          OTEL_SHELL_CONFIG_GITHUB_INJECT_ON_MAIN: 'TRUE'
+          OTEL_SHELL_SDK_OUTPUT_REDIRECT: /dev/null
+      - uses: super-linter/super-linter@4ce20838b8ab83717e78138c5b3a1407148e0918 # v8.7.0
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          VALIDATE_ALL_CODEBASE: 'true'
+          DISABLE_ERRORS: 'false'
+          MULTI_STATUS: 'false'
+          ENABLE_GITHUB_PULL_REQUEST_SUMMARY_COMMENT: 'false'
+          # RUN_LOCAL: 'true'
+          # DEFAULT_BRANCH: main
+          # LOG_LEVEL: DEBUG
+  job-integration-megalinter:
+    needs: job-smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref }}
+          fetch-depth: 0
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: packages.deb.${{ inputs.ref }}
+      - uses: ./actions/instrument/job
+        with:
+          cache: 'false'
+        env:
+          OTEL_SHELL_CONFIG_GITHUB_INJECT_ON_MAIN: 'TRUE'
+          OTEL_SHELL_SDK_OUTPUT_REDIRECT: /dev/null
+      - uses: oxsecurity/megalinter@ef3e84b8b836d76db562d0f3ed7da61e8fd538bc # v9.6.0
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          VALIDATE_ALL_CODEBASE: 'true'
+  job-integration-python-venv:
+    needs: job-smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref }}
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: packages.deb.${{ inputs.ref }}
+      - uses: ./actions/instrument/job
+        with:
+          cache: 'false'
+        env:
+          OTEL_SHELL_CONFIG_GITHUB_INJECT_ON_MAIN: 'TRUE'
+          OTEL_SHELL_SDK_OUTPUT_REDIRECT: /dev/null
       - run: |
           # initializing a python venv because venv have a lot of corner cases about injection, users, file permissions, changing paths and on-the-fly instrumentation
           python3 -m venv venv
           . venv/bin/activate
           pip3 install -r src/usr/share/opentelemetry_shell/agent.instrumentation.python/requirements.txt
           deactivate
-      - uses: actions/checkout@v6.0.2
+  job-integration-checkout-submodules:
+    needs: job-smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref }}
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: packages.deb.${{ inputs.ref }}
+      - uses: ./actions/instrument/job
+        with:
+          cache: 'false'
+        env:
+          OTEL_SHELL_CONFIG_GITHUB_INJECT_ON_MAIN: 'TRUE'
+          OTEL_SHELL_SDK_OUTPUT_REDIRECT: /dev/null
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           path: repo_with_submodules
           repository: robocorp/example-use-git-submodule-for-shared-code
           submodules: recursive
+  job-integration-copilot-install:
+    needs: job-smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref }}
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: packages.deb.${{ inputs.ref }}
+      - uses: ./actions/instrument/job
+        with:
+          cache: 'false'
+        env:
+          OTEL_SHELL_CONFIG_GITHUB_INJECT_ON_MAIN: 'TRUE'
+          OTEL_SHELL_SDK_OUTPUT_REDIRECT: /dev/null
+      - uses: github/gh-aw-actions/setup@bc56a0cad2f450c562810785ef38649c04db812a
+      - run: bash "${RUNNER_TEMP}/gh-aw/actions/install_copilot_cli.sh" 1.0.40
   job-io-1:
     needs: job-smoke
     runs-on: ubuntu-latest
@@ -203,12 +434,12 @@ jobs:
     outputs:
       foo: ${{ steps.my-step.outputs.foo }}
     steps:
-      - uses: actions/checkout@v6.0.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.ref }}
-      - uses: actions/download-artifact@v7.0.0
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          name: packages_${{ inputs.ref }}
+          name: packages.deb.${{ inputs.ref }}
       - uses: ./actions/instrument/job
         env:
           OTEL_SHELL_CONFIG_GITHUB_INJECT_ON_MAIN: 'TRUE'
@@ -225,12 +456,12 @@ jobs:
       contents: read
       actions: read
     steps:
-      - uses: actions/checkout@v6.0.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.ref }}
-      - uses: actions/download-artifact@v7.0.0
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          name: packages_${{ inputs.ref }}
+          name: packages.deb.${{ inputs.ref }}
       - uses: ./actions/instrument/job
         env:
           OTEL_SHELL_CONFIG_GITHUB_INJECT_ON_MAIN: 'TRUE'
@@ -245,12 +476,12 @@ jobs:
       contents: read
       actions: read
     steps:
-      - uses: actions/checkout@v6.0.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.ref }}
-      - uses: actions/download-artifact@v7.0.0
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          name: packages_${{ inputs.ref }}
+          name: packages.deb.${{ inputs.ref }}
       - uses: ./actions/instrument/job
         with:
           cache: 'false'
@@ -267,10 +498,10 @@ jobs:
       contents: read
       actions: read
     steps:
-      - uses: actions/checkout@v6.0.2
-      - uses: actions/download-artifact@v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          name: packages_${{ inputs.ref }}
+          name: packages.deb.${{ inputs.ref }}
       - uses: ./actions/instrument/job
         with:
           cache: 'false'
@@ -292,12 +523,12 @@ jobs:
       contents: read
       actions: read
     steps:
-      - uses: actions/checkout@v6.0.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.ref }}
-      - uses: actions/download-artifact@v7.0.0
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          name: packages_${{ inputs.ref }}
+          name: packages.deb.${{ inputs.ref }}
       - uses: ./actions/instrument/job
         with:
           cache: ${{ matrix.cache }}
@@ -313,18 +544,18 @@ jobs:
       contents: read
       actions: read
     steps:
-      - uses: actions/checkout@v6.0.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.ref }}
-      - uses: actions/download-artifact@v7.0.0
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          name: packages_${{ inputs.ref }}
+          name: packages.deb.${{ inputs.ref }}
       - run: |
           nohup node -e "require('http').createServer(function (req, res) { console.log(req.method, req.url); res.writeHead(200); res.end(); }).listen(8080);" 1> /tmp/http.log 2> /dev/null &
       - uses: ./actions/instrument/job
         with:
           cache: 'false'
-          secrets_to_redact: '{"github.token": "${{ github.token }}", "url": "https://example.com/foo/bar", "regex": "[a-zA-Z]*"}'
+          secrets_to_redact: '{"github.token": "${{ github.token }}", "url": "https://example.com/foo/bar", "regex": "[a-zA-Z]*", "quote": "foo\"bar"}'
         env:
           OTEL_LOGS_EXPORTER: otlp
           OTEL_METRICS_EXPORTER: otlp
@@ -355,14 +586,29 @@ jobs:
       contents: read
       actions: read
     steps:
-      - uses: actions/checkout@v6.0.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.ref }}
-      - uses: actions/download-artifact@v7.0.0
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          name: packages_${{ inputs.ref }}
+          name: packages.deb.${{ inputs.ref }}
       - run: |
-          nohup node -e "require('http').createServer(function (req, res) { console.log(req.method, req.url); res.writeHead(200); res.end(); }).listen(8080);" 1> /tmp/http.log 2> /dev/null &
+          nohup node -e "
+          const fs = require('fs');
+          const zlib = require('zlib');
+          require('http').createServer(function (req, res) {
+            console.log(req.method, req.url);
+            const chunks = [];
+            req.on('data', chunk => chunks.push(chunk));
+            req.on('end', () => {
+              let buffer = Buffer.concat(chunks);
+              if (req.headers['content-encoding'] === 'gzip') { try { buffer = zlib.gunzipSync(buffer); } catch(e) {} }
+              fs.appendFileSync('/tmp/' + req.url.split('/').pop() + '.json', buffer.toString() + '\n');
+              res.writeHead(200);
+              res.end();
+            });
+          }).listen(8080);
+          " 1> /tmp/http.log 2> /dev/null &
       - uses: ./actions/instrument/job
         with:
           cache: 'false'
@@ -380,10 +626,46 @@ jobs:
       - run: cat /tmp/http.log | sort -u
       - run: cat /tmp/http.log | grep -q '^POST /v1/logs$'
         if: ${{ matrix.exporter_logs == 'otlp' }}
+      - run: |
+          cat /tmp/logs.json
+          logs_with_span_id=$(cat /tmp/logs.json | jq -s '[.[] | .resourceLogs[]?.scopeLogs[]?.logRecords[]? | select(.spanId != "" and .spanId != null)] | length')
+          logs_with_trace_id=$(cat /tmp/logs.json | jq -s '[.[] | .resourceLogs[]?.scopeLogs[]?.logRecords[]? | select(.traceId != "" and .traceId != null)] | length')
+          all_logs=$(cat /tmp/logs.json | jq -s '[.[] | .resourceLogs[]?.scopeLogs[]?.logRecords[]?] | length')
+          echo "Logs with span ID: $logs_with_span_id"
+          echo "Logs with trace ID: $logs_with_trace_id"
+          echo "All logs: $all_logs"
+          [ "$logs_with_span_id" -ge 1 ] || { echo "Expected at least 1 log with span ID"; exit 1; }
+          [ "$logs_with_trace_id" -ge 1 ] || { echo "Expected at least 1 log with trace ID"; exit 1; }
+        if: ${{ matrix.exporter_logs == 'otlp' && matrix.protocol == 'http/json' }}
       - run: cat /tmp/http.log | grep -q '^POST /v1/metrics$'
         if: ${{ matrix.exporter_metrics == 'otlp' }}
+      - run: |
+          cat /tmp/metrics.json
+          job_metrics=$(cat /tmp/metrics.json | jq -s '[.[] | .resourceMetrics[]?.scopeMetrics[]?.metrics[]? | select(.name | startswith("cicd"))] | length')
+          step_metrics=$(cat /tmp/metrics.json | jq -s '[.[] | .resourceMetrics[]?.scopeMetrics[]?.metrics[]? | select(.name | contains("step"))] | length')
+          all_metrics=$(cat /tmp/metrics.json | jq -s '[.[] | .resourceMetrics[]?.scopeMetrics[]?.metrics[]?] | length')
+          echo "Job metrics: $job_metrics"
+          echo "Step metrics: $step_metrics"
+          echo "All metrics: $all_metrics"
+          [ "$job_metrics" -ge 1 ] || { echo "Expected at least 1 job metric"; exit 1; }
+          [ "$step_metrics" -ge 1 ] || { echo "Expected at least 1 step metric"; exit 1; }
+        if: ${{ matrix.exporter_metrics == 'otlp' && matrix.protocol == 'http/json' }}
       - run: cat /tmp/http.log | grep -q '^POST /v1/traces$'
         if: ${{ matrix.exporter_traces == 'otlp' }}
+      - run: |
+          cat /tmp/traces.json
+          job_span_count=$(cat /tmp/traces.json | jq -s '[.[] | .resourceSpans[]?.scopeSpans[]?.spans[]? | select(.attributes[]? | select(.key == "github.actions.type" and .value.stringValue == "job"))] | length')
+          step_span_count=$(cat /tmp/traces.json | jq -s '[.[] | .resourceSpans[]?.scopeSpans[]?.spans[]? | select(.attributes[]? | select(.key == "github.actions.type" and .value.stringValue == "step"))] | length')
+          all_spans=$(cat /tmp/traces.json | jq -s '[.[] | .resourceSpans[]?.scopeSpans[]?.spans[]?] | length')
+          empty_parent_count=$(cat /tmp/traces.json | jq -s '[.[] | .resourceSpans[]?.scopeSpans[]?.spans[]? | select(.parentSpanId == "" or .parentSpanId == null)] | length')
+          echo "Job spans: $job_span_count"
+          echo "Step spans: $step_span_count"
+          echo "All spans: $all_spans"
+          echo "Spans without parent: $empty_parent_count"
+          # [ "$job_span_count" -ge 1 ] || { echo "Expected at least 1 job span"; exit 1; } # job span is only flushe don end of job, so not available yet
+          [ "$step_span_count" -ge 1 ] || { echo "Expected at least 1 step span"; exit 1; }
+          # [ "$empty_parent_count" -eq 1 ] || { echo "Expected exactly 1 span without parent (root span), found $empty_parent_count"; exit 1; } # same reason as above
+        if: ${{ matrix.exporter_traces == 'otlp' && matrix.protocol == 'http/json' }}
   job-exporter-deferred:
     needs: job-smoke
     runs-on: ubuntu-latest
@@ -392,12 +674,12 @@ jobs:
       contents: read
       actions: read
     steps:
-      - uses: actions/checkout@v6.0.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.ref }}
-      - uses: actions/download-artifact@v7.0.0
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          name: packages_${{ inputs.ref }}
+          name: packages.deb.${{ inputs.ref }}
       - uses: ./actions/instrument/job
         with:
           cache: 'false'
@@ -428,12 +710,12 @@ jobs:
       security-events: none
       statuses: none
     steps:
-      - uses: actions/checkout@v6.0.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.ref }}
-      - uses: actions/download-artifact@v7.0.0
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          name: packages_${{ inputs.ref }}
+          name: packages.deb.${{ inputs.ref }}
       - uses: ./actions/instrument/job
         env:
           OTEL_SHELL_CONFIG_GITHUB_INJECT_ON_MAIN: 'TRUE'
@@ -452,12 +734,12 @@ jobs:
       contents: read
       actions: read
     steps:
-      - uses: actions/checkout@v6.0.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.ref }}
-      - uses: actions/download-artifact@v7.0.0
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          name: packages_${{ inputs.ref }}
+          name: packages.deb.${{ inputs.ref }}
       - run: |
           nohup node -e "require('http').createServer(function (req, res) { console.log(req.method, req.url); res.writeHead(200); res.end(); }).listen(8080);" 1> /tmp/http.log 2> /dev/null &
       - uses: ./actions/instrument/job
@@ -472,36 +754,42 @@ jobs:
       - run: echo hello world
   job-windows:
     needs: job-smoke
-    runs-on: windows-latest
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 60
+    strategy:
+      matrix:
+        runner: [windows-2022, windows-latest]
     permissions:
       contents: read
       actions: read
     steps:
-      - uses: actions/checkout@v6.0.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.ref }}
-      - uses: actions/download-artifact@v7.0.0
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          name: packages_${{ inputs.ref }}
+          name: packages.deb.${{ inputs.ref }}
       - uses: ./actions/instrument/job
         env:
           OTEL_SHELL_CONFIG_GITHUB_INJECT_ON_MAIN: 'TRUE'
       - run: echo hello world
   job-macos:
     needs: job-smoke
-    runs-on: macos-latest
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 60
+    strategy:
+      matrix:
+        runner: [macos-15, macos-latest]
     permissions:
       contents: read
       actions: read
     steps:
-      - uses: actions/checkout@v6.0.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.ref }}
-      - uses: actions/download-artifact@v7.0.0
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          name: packages_${{ inputs.ref }}
+          name: packages.deb.${{ inputs.ref }}
       - uses: ./actions/instrument/job
         env:
           OTEL_SHELL_CONFIG_GITHUB_INJECT_ON_MAIN: 'TRUE'
@@ -514,12 +802,12 @@ jobs:
       contents: read
       actions: read
     steps:
-      - uses: actions/checkout@v6.0.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.ref }}
-      - uses: actions/download-artifact@v7.0.0
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          name: packages_${{ inputs.ref }}
+          name: packages.deb.${{ inputs.ref }}
       - uses: ./actions/instrument/job
         env:
           OTEL_SHELL_CONFIG_GITHUB_INJECT_ON_MAIN: 'TRUE'
@@ -531,12 +819,12 @@ jobs:
       contents: read
       actions: read
     steps:
-      - uses: actions/checkout@v6.0.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.ref }}
-      - uses: actions/download-artifact@v7.0.0
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          name: packages_${{ inputs.ref }}
+          name: packages.deb.${{ inputs.ref }}
       - id: workflow_run
         run: |
           curl -L --no-progress-meter --fail --retry 16 -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" "${GITHUB_API_URL:-https://api.github.com}"/repos/"$GITHUB_REPOSITORY"/actions/workflows'?per_page=100&page=1' | jq --unbuffered -r '.workflows[] | select(.name == "Workflow Example") | .id' \
@@ -553,7 +841,6 @@ jobs:
         with:
           workflow_run_id: ${{ steps.workflow_run.outputs.id }}
           workflow_run_attempt: ${{ steps.workflow_run.outputs.run_attempt }}
-          cache: false
         env:
           OTEL_METRICS_EXPORTER: console
           OTEL_LOGS_EXPORTER: console
@@ -574,12 +861,12 @@ jobs:
     steps:
       - id: filename
         run: echo "otlp=$(mktemp)" >> "$GITHUB_OUTPUT"
-      - uses: actions/checkout@v6.0.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.ref }}
-      - uses: actions/download-artifact@v7.0.0
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          name: packages_${{ inputs.ref }}
+          name: packages.deb.${{ inputs.ref }}
       - id: workflow_run
         run: |
           curl -L --no-progress-meter --fail --retry 16 -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" "${GITHUB_API_URL:-https://api.github.com}"/repos/"$GITHUB_REPOSITORY"/actions/workflows'?per_page=100&page=1' | jq --unbuffered -r '.workflows[] | select(.name == "Workflow Example") | .id' \
@@ -599,7 +886,6 @@ jobs:
           workflow_run_attempt: ${{ steps.workflow_run.outputs.run_attempt }}
           self_monitoring: ${{ matrix.self_monitoring }}
           self_monitoring_anonymize: ${{ matrix.self_monitoring_anonymize }}
-          cache: false
         env:
           OTEL_METRICS_EXPORTER: console
           OTEL_LOGS_EXPORTER: console
@@ -631,12 +917,12 @@ jobs:
       contents: read
       actions: read
     steps:
-      - uses: actions/checkout@v6.0.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.ref }}
-      - uses: actions/download-artifact@v7.0.0
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          name: packages_${{ inputs.ref }}
+          name: packages.deb.${{ inputs.ref }}
       - id: check_suite
         run: |
           curl -L --no-progress-meter --fail --retry 16 -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" "${GITHUB_API_URL:-https://api.github.com}"/repos/"$GITHUB_REPOSITORY"/branches'?per_page=100&page=1' | jq '.[].name' -r \
@@ -649,7 +935,214 @@ jobs:
       - uses: ./actions/instrument/checksuite
         with:
           check_suite_id: ${{ steps.check_suite.outputs.id }}
-          cache: false
+        env:
+          OTEL_METRICS_EXPORTER: console
+          OTEL_LOGS_EXPORTER: console
+          OTEL_TRACES_EXPORTER: console
+          OTEL_SHELL_SDK_OUTPUT_REDIRECT: /dev/null
+  repository-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref }}
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: packages.deb.${{ inputs.ref }}
+      - uses: ./actions/instrument/repository
+        env:
+          OTEL_METRICS_EXPORTER: console
+          OTEL_LOGS_EXPORTER: console
+          OTEL_TRACES_EXPORTER: console
+          OTEL_SHELL_SDK_OUTPUT_REDIRECT: /dev/null
+  repository-pull-request-opened:
+    needs: repository-smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref }}
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: packages.deb.${{ inputs.ref }}
+      - uses: ./actions/instrument/repository
+        with:
+          event_name: pull_request
+          event_action: opened
+          event_body: '{"pull_request":{"created_at":"2024-01-01T00:00:00Z","head":{"label":"user:branch","sha":"abc123"},"base":{"label":"user:main","sha":"def456"}}}'
+        env:
+          OTEL_METRICS_EXPORTER: console
+          OTEL_LOGS_EXPORTER: console
+          OTEL_TRACES_EXPORTER: console
+          OTEL_SHELL_SDK_OUTPUT_REDIRECT: /dev/null
+  repository-pull-request-closed:
+    needs: repository-smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref }}
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: packages.deb.${{ inputs.ref }}
+      - uses: ./actions/instrument/repository
+        with:
+          event_name: pull_request
+          event_action: closed
+          event_body: '{"pull_request":{"created_at":"2024-01-01T00:00:00Z","closed_at":"2024-01-02T00:00:00Z","head":{"label":"user:branch","sha":"abc123"},"base":{"label":"user:main","sha":"def456"}}}'
+        env:
+          OTEL_METRICS_EXPORTER: console
+          OTEL_LOGS_EXPORTER: console
+          OTEL_TRACES_EXPORTER: console
+          OTEL_SHELL_SDK_OUTPUT_REDIRECT: /dev/null
+  repository-pull-request-merged:
+    needs: repository-smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref }}
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: packages.deb.${{ inputs.ref }}
+      - uses: ./actions/instrument/repository
+        with:
+          event_name: pull_request
+          event_action: closed
+          event_body: '{"pull_request":{"created_at":"2024-01-01T00:00:00Z","merged_at":"2024-01-02T00:00:00Z","merge_commit_sha":"abc123","head":{"label":"user:branch","sha":"abc123"},"base":{"label":"user:main","sha":"def456"}}}'
+        env:
+          OTEL_METRICS_EXPORTER: console
+          OTEL_LOGS_EXPORTER: console
+          OTEL_TRACES_EXPORTER: console
+          OTEL_SHELL_SDK_OUTPUT_REDIRECT: /dev/null
+  repository-pull-request-reopened:
+    needs: repository-smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref }}
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: packages.deb.${{ inputs.ref }}
+      - uses: ./actions/instrument/repository
+        with:
+          event_name: pull_request
+          event_action: reopened
+          event_body: '{"pull_request":{"head":{"label":"user:branch","sha":"abc123"},"base":{"label":"user:main","sha":"def456"}}}'
+        env:
+          OTEL_METRICS_EXPORTER: console
+          OTEL_LOGS_EXPORTER: console
+          OTEL_TRACES_EXPORTER: console
+          OTEL_SHELL_SDK_OUTPUT_REDIRECT: /dev/null
+  repository-pull-request-review-submitted:
+    needs: repository-smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref }}
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: packages.deb.${{ inputs.ref }}
+      - uses: ./actions/instrument/repository
+        with:
+          event_name: pull_request_review
+          event_action: submitted
+          event_body: '{"review":{"state":"approved","submitted_at":"2024-01-02T00:00:00Z"},"pull_request":{"created_at":"2024-01-01T00:00:00Z"}}'
+        env:
+          OTEL_METRICS_EXPORTER: console
+          OTEL_LOGS_EXPORTER: console
+          OTEL_TRACES_EXPORTER: console
+          OTEL_SHELL_SDK_OUTPUT_REDIRECT: /dev/null
+  repository-create:
+    needs: repository-smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref }}
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: packages.deb.${{ inputs.ref }}
+      - uses: ./actions/instrument/repository
+        with:
+          event_name: create
+          event_body: '{"ref_type":"branch"}'
+        env:
+          OTEL_METRICS_EXPORTER: console
+          OTEL_LOGS_EXPORTER: console
+          OTEL_TRACES_EXPORTER: console
+          OTEL_SHELL_SDK_OUTPUT_REDIRECT: /dev/null
+  repository-delete:
+    needs: repository-smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref }}
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: packages.deb.${{ inputs.ref }}
+      - uses: ./actions/instrument/repository
+        with:
+          event_name: delete
+          event_body: '{"ref_type":"branch"}'
+        env:
+          OTEL_METRICS_EXPORTER: console
+          OTEL_LOGS_EXPORTER: console
+          OTEL_TRACES_EXPORTER: console
+          OTEL_SHELL_SDK_OUTPUT_REDIRECT: /dev/null
+  repository-push:
+    needs: repository-smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref }}
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: packages.deb.${{ inputs.ref }}
+      - uses: ./actions/instrument/repository
+        with:
+          event_name: push
+          event_body: '{"ref":"refs/heads/main"}'
         env:
           OTEL_METRICS_EXPORTER: console
           OTEL_LOGS_EXPORTER: console
@@ -661,7 +1154,7 @@ jobs:
     permissions:
       actions: read
     steps:
-      - uses: actions/checkout@v6.0.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.ref }}
       - uses: ./actions/instrument/deploy
@@ -691,7 +1184,7 @@ jobs:
       REPOSITORY_TEMPLATE: thoth-deploy-test-repository-${{ matrix.private  }}-${{ matrix.secret_redaction_strategy }}
       ASSERT_RECEIVING_DATA: 'false'
     steps:
-      - uses: plengauer/opentelemetry-github/actions/instrument/job@v5.42.2
+      - uses: plengauer/opentelemetry-github/actions/instrument/job@2169fb0fa9a8260fde99a2a185bbf99a5d63546e # v5.59.0
         with:
           secrets_to_redact: '["${{ github.token }}","${{ secrets.TEST_GITHUB_TOKEN }}"]'
         env:
@@ -705,7 +1198,7 @@ jobs:
           curl -L -H "Authorization: Bearer ${{ secrets.TEST_GITHUB_TOKEN }}" -X DELETE "${GITHUB_API_URL:-https://api.github.com}"/repos/${{ steps.config.outputs.user }}/${{ steps.config.outputs.repository }} || true
       - run: |
           curl -L -H "Authorization: Bearer ${{ secrets.TEST_GITHUB_TOKEN }}" "${GITHUB_API_URL:-https://api.github.com}"/user/repos -d '{"name":"${{ steps.config.outputs.repository }}","private":${{ matrix.private }},"auto_init":true}'
-      - uses: actions/checkout@v6.0.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: "${{ steps.config.outputs.user }}/${{ steps.config.outputs.repository }}"
           token: ${{ secrets.TEST_GITHUB_TOKEN }}

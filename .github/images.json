@@ -13,14 +13,14 @@
   },
   "ubuntu": {
     "oldest": "ubuntu:noble",
-    "stable": "ubuntu:plucky",
-    "latest": "ubuntu:questing",
-    "dev": "ubuntu:resolute"
+    "stable": "ubuntu:noble",
+    "latest": "ubuntu:resolute",
+    "dev": "ubuntu:stonking"
   },
   "fedora": {
-    "oldest": "fedora:42",
-    "stable": "fedora:43",
-    "latest": "fedora:43",
+    "oldest": "fedora:43",
+    "stable": "fedora:44",
+    "latest": "fedora:44",
     "dev": "fedora:rawhide"
   },
   "rhel": {
@@ -30,15 +30,15 @@
     "dev": "redhat/ubi10:latest"
   },
   "opensuse": {
-    "oldest": "opensuse/leap:15.6",
+    "oldest": "opensuse/leap:16.0",
     "stable": "opensuse/leap:16.0",
     "latest": "opensuse/tumbleweed:latest",
     "dev": "opensuse/tumbleweed:latest"
   },
   "alpine": {
-    "oldest": "alpine:3.20",
-    "stable": "alpine:3.22",
-    "latest": "alpine:3.23",
-    "dev": "alpine:3.23"
+    "oldest": "alpine:3.21",
+    "stable": "alpine:3.23",
+    "latest": "alpine:3.24",
+    "dev": "alpine:3.24"
   }
 }

@@ -30,6 +30,15 @@ inputs:
   check_suite_level_instrumentation_use_container:
     description: 'Use a container image to avoid repeated installation on every run.'
     default: true
+  repository_level_instrumentation:
+    description: 'Deploy repository-level instrumentation to collect VCS metrics'
+    default: true
+  repository_level_instrumentation_file_name:
+    description: 'File name for repository instrumentation workflow'
+    default: 'observability_repository.yml'
+  repository_level_instrumentation_use_container:
+    description: 'Use a container image to avoid repeated installation on every run.'
+    default: true
   job_level_instrumentation:
     default: true
   job_level_instrumentation_exclude:
@@ -50,6 +59,18 @@ inputs:
   debug:
     description: 'Enable debug logging'
     default: ${{ runner.debug }}
+  commit_message:
+    description: 'Commit message for the deployment commit'
+    default: 'deploy opentelemetry'
+  ssh_signing_key:
+    description: 'SSH private key for signing commits (mutually exclusive with gpg_private_key). See https://docs.github.com/en/authentication/managing-commit-signature-verification/signing-commits'
+    default: ''
+  gpg_private_key:
+    description: 'GPG private key for signing commits in armored format (mutually exclusive with ssh_signing_key). See https://docs.github.com/en/authentication/managing-commit-signature-verification/signing-commits'
+    default: ''
+  gpg_passphrase:
+    description: 'Passphrase for the GPG private key (only used when gpg_private_key is set)'
+    default: ''
   __repository_level_instrumentation_file_name_override:
     description: 'INTERNAL ONLY - DO NOT SET MANUALLY'
     default: ''
@@ -73,7 +94,7 @@ runs:
       shell: bash
       run: type yq || (sudo apt-get update && sudo apt-get -y install yq)
     - name: "Checkout"
-      uses: actions/checkout@v6.0.2
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       with:
         token: ${{ inputs.github_token }}
     - name: "Find self"
@@ -118,6 +139,17 @@ runs:
         else
           echo '${{ inputs.action_version }}'
         fi | xargs -I '{}' echo version='{}' >> "$GITHUB_OUTPUT"
+    - name: "Determine version comment"
+      id: determine-instrumentation-version-comment
+      shell: bash
+      run: |
+        comment=
+        if [ "${{ inputs.action_version }}" = same ]; then
+          comment="$(grep -E '/actions/instrument/deploy@' "${{ steps.find-self.outputs.path }}" | sed -n 's/.*# *//p' | head -n 1)"
+        elif echo '${{ inputs.action_version }}' | grep -qE '^v[0-9]'; then
+          comment='${{ inputs.action_version }}'
+        fi
+        [ -z "$comment" ] || echo "comment=# $comment" >> "$GITHUB_OUTPUT"
     - name: Canonicalize
       shell: bash
       run: |
@@ -140,13 +172,19 @@ runs:
         (ls "${{ inputs.workflows_directory }}"/*.yaml "${{ inputs.workflows_directory }}"/*.yml 2> /dev/null || true) | while read -r workflow_file; do
           cat "$workflow_file" | yq .on.check_suite 2> /dev/null | grep -qv '^null$' && cat "$workflow_file" | yq .jobs.*.steps[].uses | grep -q /actions/instrument/checksuite && echo path="$workflow_file" >> "$GITHUB_OUTPUT" && break || true
         done
+    - name: "Find repository-level observability"
+      id: find-repository-level-instrumentation
+      shell: bash
+      run: |
+        (ls "${{ inputs.workflows_directory }}"/*.yaml "${{ inputs.workflows_directory }}"/*.yml 2> /dev/null || true) | while read -r workflow_file; do
+          cat "$workflow_file" | yq .jobs.*.steps[].uses | grep -q /actions/instrument/repository && echo path="$workflow_file" >> "$GITHUB_OUTPUT" && break || true
+        done
   
     - name: "Deploy workflow-level observability"
       if: ${{ inputs.workflow_level_instrumentation == 'true' && steps.find-workflow-level-instrumentation.outputs.path == null }}
       shell: bash
       run: |
-        echo '
-        name: ${{ inputs.workflow_level_instrumentation_workflow_name }}
+        echo 'name: ${{ inputs.workflow_level_instrumentation_workflow_name }}
         on:
           workflow_run:
             workflows: []
@@ -194,11 +232,15 @@ runs:
             fi
           done \
             | ([ -n "${{ inputs.workflow_level_instrumentation_exclude }}" ] && grep -qvF "$(echo "${{ inputs.workflow_level_instrumentation_exclude }}" | tr ',' '\n' | tr ':' '\n' | tr ';' '\n')" || cat) \
-            | grep -vF "$([ -r "${{ steps.find-workflow-level-instrumentation.outputs.path }}" ] && cat "${{ steps.find-workflow-level-instrumentation.outputs.path }}" | yq .name || cat "${{ inputs.workflows_directory }}/${{ inputs.workflow_level_instrumentation_file_name }}" | yq .name)"
-          seq 1 10 \
-            | xargs -I '{}' curl -s --fail --retry 8 --header "Authorization: Bearer ${{ inputs.github_token }}" "${GITHUB_API_URL:-https://api.github.com}"/repos/${{ github.repository }}/actions/runs'?per_page=100&page={}' | jq '.workflow_runs[].workflow_id' | sort -u \
-            | xargs -I '{}' curl -s --fail --retry 8 --header "Authorization: Bearer ${{ inputs.github_token }}" "${GITHUB_API_URL:-https://api.github.com}"/repos/${{ github.repository }}/actions/workflows/'{}' | jq 'select(.path | startswith("dynamic/")) | .name' -r
-          echo Copilot coding agent
+            | grep -vF "$([ -r "${{ steps.find-workflow-level-instrumentation.outputs.path }}" ] && cat "${{ steps.find-workflow-level-instrumentation.outputs.path }}" | yq .name || cat "${{ inputs.workflows_directory }}/${{ inputs.workflow_level_instrumentation_file_name }}" | yq .name)" \
+            | grep -vF "$([ -r "${{ steps.find-check-suite-level-instrumentation.outputs.path }}" ] && cat "${{ steps.find-check-suite-level-instrumentation.outputs.path }}" | yq .name || cat "${{ inputs.workflows_directory }}/${{ inputs.check_suite_level_instrumentation_file_name }}" | yq .name)" \
+            | grep -vF "$([ -r "${{ steps.find-repository-level-instrumentation.outputs.path }}" ] && cat "${{ steps.find-repository-level-instrumentation.outputs.path }}" | yq .name || cat "${{ inputs.workflows_directory }}/${{ inputs.repository_level_instrumentation_file_name }}" | yq .name)"
+          seq 1 10 | xargs -I '{}' curl -s --fail --retry 8 --header "Authorization: Bearer ${{ inputs.github_token }}" "${GITHUB_API_URL:-https://api.github.com}"/repos/${{ github.repository }}/actions/workflows'?per_page=100&page={}' | jq '.workflows[] | select(.path | startswith("dynamic/")) | .name' -r
+          echo Copilot # this one should be prefilled because it's very common and new
+          echo Copilot code review # this one should be prefilled because it's very common and new
+          echo Copilot cloud agent # this one should be prefilled because it needs deferred export
+          echo Claude # this one should be prefilled because it needs deferred export
+          echo OpenAI Codex # this one should be prefilled because it needs deferred export
         } | sort -u > "$names_file"
         names=""
         while IFS= read -r line; do
@@ -208,16 +250,11 @@ runs:
         yq -i ".on.workflow_run.workflows = [${names}]" "$path"
   
     - name: "Deploy check suite-level instrumentation"
-      if: ${{ inputs.check_suite_level_instrumentation == 'true' }}
+      if: ${{ inputs.check_suite_level_instrumentation == 'true' && steps.find-check-suite-level-instrumentation.outputs.path == null }}
       shell: bash
       run: |
         path="${{ inputs.workflows_directory }}/${{ inputs.check_suite_instrumentation_file_name }}"
-        if [ -r "$path" ]; then
-          echo "Check suite instrumentation already exists at $path"
-          exit 0
-        fi
-        echo '
-        name: OpenTelemetry
+        echo 'name: OpenTelemetry
         on:
           check_suite:
             types:
@@ -252,12 +289,56 @@ runs:
           echo ::warning::'Runner image '"$image"' is unavailable, skipping configuration since it its only for optimization. A common cause for this is that the package is not publicly visible in the ghcr. This needs to be configured manually. Another possible cause is that it cannot be identified (no docker command available and token cannot read packages)'
         fi
   
+    - name: "Deploy repository-level instrumentation"
+      if: ${{ inputs.repository_level_instrumentation == 'true' && steps.find-repository-level-instrumentation.outputs.path == null }}
+      shell: bash
+      run: |
+        path="${{ inputs.workflows_directory }}/${{ inputs.repository_level_instrumentation_file_name }}"
+        echo 'name: OpenTelemetry
+        on:
+          pull_request:
+            types: [ opened, reopened, closed ]
+          pull_request_review:
+            types: [ submitted ]
+          create:
+          delete:
+          push:
+        jobs:
+          export:
+            runs-on: ubuntu-latest
+            permissions:
+              contents: read
+            steps:
+              - uses: ${{ steps.determine-repository.outputs.repository }}/actions/instrument/repository@${{ steps.determine-instrumentation-version.outputs.version }}
+        ' > "$path"
+        cat "${{ steps.find-self.outputs.path }}" | yq '.jobs[].steps[] | select(.uses == "${{ steps.determine-repository.outputs.repository }}/actions/instrument/deploy*") | .env | keys[]' | grep '^OTEL_' | while read -r key; do
+          value="$(cat "${{ steps.find-self.outputs.path }}" | yq '.jobs[].steps[] | select(.uses == "${{ steps.determine-repository.outputs.repository }}/actions/instrument/deploy*") | .env.'"$key")"
+          yq -i '.jobs[].steps[0].env.'"$key"' = "'"$value"'"' "$path"
+        done
+    - name: "Deploy repository-level startup optimization"
+      if: ${{ inputs.repository_level_instrumentation == 'true' && inputs.repository_level_instrumentation_use_container == 'true' }}
+      shell: bash
+      run: |
+        if [ -w "${{ steps.find-repository-level-instrumentation.outputs.path }}" ]; then path="${{ steps.find-repository-level-instrumentation.outputs.path }}"; else path="${{ inputs.workflows_directory }}/${{ inputs.repository_level_instrumentation_file_name }}"; fi
+        if cat "$path" | yq '.jobs.export.container' | grep -q '^null$'; then
+          name=opentelemetry-github-workflow-instrumentation-runner
+          version=${{ steps.determine-instrumentation-version.outputs.version }}
+          [ "$version" != main ] || exit 0
+          image=ghcr.io/${{ github.repository_owner }}/"$name":"$version"
+          if curl -s --fail --retry 8 --header "Authorization: Bearer ${{ inputs.github_token }}" "${GITHUB_API_URL:-https://api.github.com}"/users/${{ github.repository_owner }}/packages/container/"$name"/versions | jq .[].metadata.container.tags[] -r | grep -qE '^'"$version"'$' \
+            || (type docker 1> /dev/null 2> /dev/null && sudo docker pull "$image"); then
+            yq -i ".jobs.export.container = \"$image\"" "$path" && exit 0
+          fi
+          echo ::warning::'Runner image '"$image"' is unavailable, skipping configuration since it its only for optimization. A common cause for this is that the package is not publicly visible in the ghcr. This needs to be configured manually. Another possible cause is that it cannot be identified (no docker command available and token cannot read packages)'
+        fi
+
     - name: "Deploy Copilot Setup"
       if: ${{ inputs.job_level_instrumentation == 'true' && inputs.job_level_instrumentation_copilot == 'true' }}
       shell: bash
       run: |
         if [ -r "${{ inputs.workflows_directory }}"/copilot-setup-steps.yml ]; then exit 0; fi
         echo '
+        name: Copilot setup steps
         on:
           push:
             paths:
@@ -281,6 +362,7 @@ runs:
             cat "$workflow_file" | yq ".jobs.$job_name.container" | grep -q '^null$' || continue
             if [ -n "$(cat "$workflow_file" | yq ".jobs.$job_name.steps[] | select(.uses == \"${{ steps.determine-repository.outputs.repository }}/actions/instrument/workflow@*\") | .uses")" ]; then continue; fi
             if [ -n "$(cat "$workflow_file" | yq ".jobs.$job_name.steps[] | select(.uses == \"${{ steps.determine-repository.outputs.repository }}/actions/instrument/checksuite@*\") | .uses")" ]; then continue; fi
+            if [ -n "$(cat "$workflow_file" | yq ".jobs.$job_name.steps[] | select(.uses == \"${{ steps.determine-repository.outputs.repository }}/actions/instrument/repository@*\") | .uses")" ]; then continue; fi
             if [ -n "$(cat "$workflow_file" | yq ".jobs.$job_name.steps[] | select(.uses == \"${{ steps.determine-repository.outputs.repository }}/actions/instrument/job@*\") | .uses")" ]; then continue; fi
             yq -i ".jobs.$job_name.steps |= ([{ \"uses\": \"${{ steps.determine-repository.outputs.repository }}/actions/instrument/job@${{ steps.determine-instrumentation-version.outputs.version }}\" }] + .)" "$workflow_file"
             cat "${{ steps.find-self.outputs.path }}" | yq '.jobs[].steps[] | select(.uses == "${{ steps.determine-repository.outputs.repository }}/actions/instrument/deploy*") | .env | keys[]' | grep '^OTEL_' | while read -r key; do
@@ -300,8 +382,8 @@ runs:
             if [ "$workflow_file" = '.github/workflows/copilot-setup-steps.yml' ]; then job_level_instrumentation_secret_redaction_strategy=none; fi
             case "$job_level_instrumentation_secret_redaction_strategy" in
               none)  [ "$(cat "$workflow_file" | yq '.jobs.'"$job_name"'.steps[] | select(.uses == "${{ steps.determine-repository.outputs.repository }}/actions/instrument/job@*") | .with.secrets_to_redact')" = null ] || yq -i 'del(.jobs.'"$job_name"'.steps[] | select(.uses == "${{ steps.determine-repository.outputs.repository }}/actions/instrument/job@*").with.secrets_to_redact)' "$workflow_file";;
-              list)  [ "$(cat "$workflow_file" | yq '.jobs.'"$job_name"'.steps[] | select(.uses == "${{ steps.determine-repository.outputs.repository }}/actions/instrument/job@*") | .with.secrets_to_redact')" = "$(cat "$workflow_file" | yq '.jobs.'"$job_name"'.steps[] | select(.uses != "${{ steps.determine-repository.outputs.repository }}/actions/instrument/job@*")' | { echo JHt7IGdpdGh1Yi50b2tlbiB9fQo= | base64 -d; grep -oE "$(echo XCR7e1tbOmJsYW5rOl1dKnNlY3JldHNcLlthLXpBLVowLTlfLi1dK1tbOmJsYW5rOl1dKn19Cg== | base64 -d)" || true; } | sort -u | jq --raw-input --slurp 'split("\n") | .[0:-1]' -c)" ] || yq -i '(.jobs.'"$job_name"'.steps[] | select(.uses == "${{ steps.determine-repository.outputs.repository }}/actions/instrument/job@*")).with.secrets_to_redact = "'"$(cat "$workflow_file" | yq '.jobs.'"$job_name"'.steps[] | select(.uses != "${{ steps.determine-repository.outputs.repository }}/actions/instrument/job@*")' | { echo JHt7IGdpdGh1Yi50b2tlbiB9fQo= | base64 -d; grep -oE "$(echo XCR7e1tbOmJsYW5rOl1dKnNlY3JldHNcLlthLXpBLVowLTlfLi1dK1tbOmJsYW5rOl1dKn19Cg== | base64 -d)" || true; } | sort -u | jq --raw-input --slurp 'split("\n") | .[0:-1]' -c | sed 's/"/\\"/g')"'"' "$workflow_file";;
-              plain) [ "$(cat "$workflow_file" | yq '.jobs.'"$job_name"'.steps[] | select(.uses == "${{ steps.determine-repository.outputs.repository }}/actions/instrument/job@*") | .with.secrets_to_redact')" = "$(cat "$workflow_file" | yq '.jobs.'"$job_name"'.steps[] | select(.uses != "${{ steps.determine-repository.outputs.repository }}/actions/instrument/job@*")' | { echo JHt7IGdpdGh1Yi50b2tlbiB9fQo= | base64 -d; grep -oE "$(echo XCR7e1tbOmJsYW5rOl1dKnNlY3JldHNcLlthLXpBLVowLTlfLi1dK1tbOmJsYW5rOl1dKn19Cg== | base64 -d)" || true; } | sort -u | jq --raw-input --slurp 'split("\n") | .[0:-1]' -c)" ] || yq -i '(.jobs.'"$job_name"'.steps[] | select(.uses == "${{ steps.determine-repository.outputs.repository }}/actions/instrument/job@*")).with.secrets_to_redact = "'"$(cat "$workflow_file" | yq '.jobs.'"$job_name"'.steps[] | select(.uses != "${{ steps.determine-repository.outputs.repository }}/actions/instrument/job@*")' | { echo JHt7IGdpdGh1Yi50b2tlbiB9fQo= | base64 -d; grep -oE "$(echo XCR7e1tbOmJsYW5rOl1dKnNlY3JldHNcLlthLXpBLVowLTlfLi1dK1tbOmJsYW5rOl1dKn19Cg== | base64 -d)" || true; } | sort -u | jq --raw-input --slurp 'split("\n") | .[0:-1]' | jq .[] -r | sed 's/"/\\"/g')"'"' "$workflow_file";;
+              list)  [ "$(cat "$workflow_file" | yq '.jobs.'"$job_name"'.steps[] | select(.uses == "${{ steps.determine-repository.outputs.repository }}/actions/instrument/job@*") | .with.secrets_to_redact')" = "$(cat "$workflow_file" | yq '.jobs.'"$job_name"'.steps[] | select(.uses != "${{ steps.determine-repository.outputs.repository }}/actions/instrument/job@*")' | { echo JHt7IGdpdGh1Yi50b2tlbiB9fQo= | base64 -d; grep -oE "$(echo XCR7e1tefV0qW1s6Ymxhbms6XV0qc2VjcmV0c1wuW2EtekEtWjAtOV8uLV0rW1s6Ymxhbms6XV0qW159XSp9fQ== | base64 -d)" || true; } | sort -u | jq --raw-input --slurp 'split("\n") | .[0:-1]' -c)" ] || yq -i '(.jobs.'"$job_name"'.steps[] | select(.uses == "${{ steps.determine-repository.outputs.repository }}/actions/instrument/job@*")).with.secrets_to_redact = "'"$(cat "$workflow_file" | yq '.jobs.'"$job_name"'.steps[] | select(.uses != "${{ steps.determine-repository.outputs.repository }}/actions/instrument/job@*")' | { echo JHt7IGdpdGh1Yi50b2tlbiB9fQo= | base64 -d; grep -oE "$(echo XCR7e1tefV0qW1s6Ymxhbms6XV0qc2VjcmV0c1wuW2EtekEtWjAtOV8uLV0rW1s6Ymxhbms6XV0qW159XSp9fQ== | base64 -d)" || true; } | sort -u | jq --raw-input --slurp 'split("\n") | .[0:-1]' -c | sed 's/"/\\"/g')"'"' "$workflow_file";;
+              plain) [ "$(cat "$workflow_file" | yq '.jobs.'"$job_name"'.steps[] | select(.uses == "${{ steps.determine-repository.outputs.repository }}/actions/instrument/job@*") | .with.secrets_to_redact')" = "$(cat "$workflow_file" | yq '.jobs.'"$job_name"'.steps[] | select(.uses != "${{ steps.determine-repository.outputs.repository }}/actions/instrument/job@*")' | { echo JHt7IGdpdGh1Yi50b2tlbiB9fQo= | base64 -d; grep -oE "$(echo XCR7e1tefV0qW1s6Ymxhbms6XV0qc2VjcmV0c1wuW2EtekEtWjAtOV8uLV0rW1s6Ymxhbms6XV0qW159XSp9fQ== | base64 -d)" || true; } | sort -u | jq --raw-input --slurp 'split("\n") | .[0:-1]' -c)" ] || yq -i '(.jobs.'"$job_name"'.steps[] | select(.uses == "${{ steps.determine-repository.outputs.repository }}/actions/instrument/job@*")).with.secrets_to_redact = "'"$(cat "$workflow_file" | yq '.jobs.'"$job_name"'.steps[] | select(.uses != "${{ steps.determine-repository.outputs.repository }}/actions/instrument/job@*")' | { echo JHt7IGdpdGh1Yi50b2tlbiB9fQo= | base64 -d; grep -oE "$(echo XCR7e1tefV0qW1s6Ymxhbms6XV0qc2VjcmV0c1wuW2EtekEtWjAtOV8uLV0rW1s6Ymxhbms6XV0qW159XSp9fQ== | base64 -d)" || true; } | sort -u | jq --raw-input --slurp 'split("\n") | .[0:-1]' | jq .[] -r | sed 's/"/\\"/g')"'"' "$workflow_file";;
                all)  [ "$(cat "$workflow_file" | yq '.jobs.'"$job_name"'.steps[] | select(.uses == "${{ steps.determine-repository.outputs.repository }}/actions/instrument/job@*") | .with.secrets_to_redact')" = "$(echo JHt7IHRvSlNPTihzZWNyZXRzKSB9fQo= | base64 -d)" ] || yq -i 'del((.jobs.'"$job_name"'.steps[] | select(.uses == "${{ steps.determine-repository.outputs.repository }}/actions/instrument/job@*")).with.secrets_to_redact) | (.jobs.'"$job_name"'.steps[] | select(.uses == "${{ steps.determine-repository.outputs.repository }}/actions/instrument/job@*")).with.secrets_to_redact = "'"$(echo JHt7IHRvSlNPTihzZWNyZXRzKSB9fQo= | base64 -d)"'"' "$workflow_file";;
                  *) echo '::error ::Illegal secret redaction strategy "${{ inputs.job_level_instrumentation_secret_redaction_strategy }}"!' && exit 1;;
             esac
@@ -314,9 +396,13 @@ runs:
         (ls "${{ inputs.workflows_directory }}"/*.yaml "${{ inputs.workflows_directory }}"/*.yml 2> /dev/null || true) | while read -r workflow_file; do
           cat "$workflow_file" | yq '.jobs | keys[]' | while read -r job_name; do
             cat "$workflow_file" | yq ".jobs.$job_name.steps" | grep -qvF null || continue
-            if [ "$(cat "$workflow_file" | yq ".jobs.$job_name.permissions")" != null ] && [ "$(cat "$workflow_file" | yq ".jobs.$job_name.permissions.actions")" != read ] && [ "$(cat "$workflow_file" | yq ".jobs.$job_name.permissions.actions")" != write ]; then
+            if [ "$(cat "$workflow_file" | yq ".jobs.$job_name.permissions.actions")" = read ] || [ "$(cat "$workflow_file" | yq ".jobs.$job_name.permissions.actions")" = write ]; then
+              :
+            elif [ "$(cat "$workflow_file" | yq ".permissions.actions")" = read ] || [ "$(cat "$workflow_file" | yq ".permissions.actions")" = write ]; then
+              :
+            elif [ "$(cat "$workflow_file" | yq ".jobs.$job_name.permissions")" != null ]; then
               yq -i ".jobs.$job_name.permissions.actions = \"read\"" "$workflow_file"
-            elif [ "$(cat "$workflow_file" | yq ".permissions")" != null ] && [ "$(cat "$workflow_file" | yq ".permissions.actions")" != read ] && [ "$(cat "$workflow_file" | yq ".permissions.actions")" != write ]; then
+            elif [ "$(cat "$workflow_file" | yq ".permissions")" != null ]; then
               yq -i ".permissions.actions = \"read\"" "$workflow_file"
             else
               yq -i ".jobs.$job_name.permissions.actions = \"read\"" "$workflow_file"
@@ -333,23 +419,93 @@ runs:
           fi
           rm -rf "$workflow_file".patch
         done
+    - name: "Annotate instrumentation action versions"
+      if: ${{ steps.determine-instrumentation-version-comment.outputs.comment != '' }}
+      shell: bash
+      run: |
+        version='${{ steps.determine-instrumentation-version.outputs.version }}'
+        echo "$version" | grep -qE '^[0-9a-f]{40}$' || exit 0
+        comment='${{ steps.determine-instrumentation-version-comment.outputs.comment }}'
+        (ls "${{ inputs.workflows_directory }}"/*.yaml "${{ inputs.workflows_directory }}"/*.yml 2> /dev/null || true) | while read -r workflow_file; do
+          for target in workflow checksuite repository job; do
+            sed -i "s~^\([[:space:]]*- uses: ${{ steps.determine-repository.outputs.repository }}/actions/instrument/$target@$version\)\$~\1 $comment~" "$workflow_file"
+          done
+        done
     - name: Log
       if: ${{ inputs.dry_run == 'true' }}
       shell: bash
       run: |
         git diff
   
-    - name: "Open Pull Request"
+    - name: "Configure commit signing"
+      if: ${{ inputs.ssh_signing_key != '' && inputs.gpg_private_key != '' }}
+      shell: bash
+      run: |
+        echo "::error::Only one of ssh_signing_key or gpg_private_key may be set, not both."
+        exit 1
+    - name: "Configure commit signing (SSH)"
+      if: ${{ inputs.ssh_signing_key != '' && inputs.gpg_private_key == '' }}
+      shell: bash
+      env:
+        SSH_SIGNING_KEY: ${{ inputs.ssh_signing_key }}
+      run: |
+        mkdir -p ~/.ssh
+        chmod 700 ~/.ssh
+        printf '%s\n' "$SSH_SIGNING_KEY" > ~/.ssh/signing_key
+        chmod 600 ~/.ssh/signing_key
+        git config gpg.format ssh
+        git config user.signingkey ~/.ssh/signing_key
+        git config commit.gpgsign true
+    - name: "Configure commit signing (GPG)"
+      if: ${{ inputs.gpg_private_key != '' && inputs.ssh_signing_key == '' }}
+      shell: bash
+      env:
+        GPG_PRIVATE_KEY: ${{ inputs.gpg_private_key }}
+        GPG_PASSPHRASE: ${{ inputs.gpg_passphrase }}
+      run: |
+        printf '%s\n' "$GPG_PRIVATE_KEY" | gpg --batch --import
+        key_id="$(gpg --list-secret-keys --keyid-format=long --with-colons | awk -F: '/^sec:/{print $5; exit}')"
+        git config user.signingkey "$key_id"
+        git config commit.gpgsign true
+        if [ -n "${GPG_PASSPHRASE:-}" ]; then
+          keygrip="$(gpg --list-secret-keys --with-keygrip --with-colons | awk -F: '/^grp:/{print $10; exit}')"
+          echo "allow-loopback-pinentry" >> ~/.gnupg/gpg-agent.conf
+          gpgconf --kill gpg-agent
+          printf '%s' "$GPG_PASSPHRASE" | /usr/lib/gnupg2/gpg-preset-passphrase --preset "$keygrip"
+        fi
+    - name: "Push"
       if: ${{ inputs.dry_run != 'true' }}
+      id: push
+      shell: bash
+      run: |
+        if [ -z "$(git status --porcelain)" ]; then exit 0; fi
+        if gh api user --jq .id; then
+          user_id="$(gh api user --jq .id)"
+          user_name="$(gh api user --jq .login)"
+        else
+          user_name="github-actions[bot]"
+          user_id="$(gh api /users/"$user_name" --jq .id)"
+        fi
+        git config user.name "$user_name"
+        git config user.email "${user_id}+${user_name}@users.noreply.github.com"
+        git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+        git add -A
+        git commit -m "${{ inputs.commit_message }}"
+        git push && echo "pushed=true" >> "$GITHUB_OUTPUT" || echo "pushed=false" >> "$GITHUB_OUTPUT"
+      env:
+        GH_TOKEN: ${{ inputs.github_token }}
+    - name: "Open Pull Request"
+      if: ${{ inputs.dry_run != 'true' && steps.push.outputs.pushed == 'false' }}
       id: open-pr
-      uses: peter-evans/create-pull-request@v8.1.0
+      uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
       with:
         token: ${{ inputs.github_token }}
-        branch: "deploy-otel"
-        commit-message: "Deploy OpenTelemetry"
+        branch: "deploy-otel/${{ github.ref_name }}"
+        base: ${{ github.ref_name }}
+        commit-message: ${{ inputs.commit_message }}
         title: "Deploy OpenTelemetry"
         body: |
-          This PR deploys workflow-level and job-level OpenTelemetry instrumentation to every workflow.
+          This PR deploys workflow-level, job-level, check suite-level as well as repository-level OpenTelemetry instrumentation to every workflow.
           (this PR is automatically generated)
         delete-branch: true
     - name: "Delay" # to let the api and PR state catch up ...

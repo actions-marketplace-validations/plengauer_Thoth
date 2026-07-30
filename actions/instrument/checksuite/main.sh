@@ -1,5 +1,5 @@
 #!/bin/bash
-set -e -o pipefail
+set -e
 
 echo "::group::Validate Configuration"
 . ../shared/config_validation.sh
@@ -75,17 +75,23 @@ echo "::endgroup::"
 echo "::group::Export"
 . otelapi.sh
 export OTEL_DISABLE_RESOURCE_DETECTION=TRUE
+repo_properties="$(gh_repo_properties 2>/dev/null || echo '[]')"
 _otel_resource_attributes_process() {
   _otel_resource_attribute string github.repository.id="$GITHUB_REPOSITORY_ID"
   _otel_resource_attribute string github.repository.name="$(echo "$GITHUB_REPOSITORY" | cut -d / -f 2)"
   _otel_resource_attribute string github.repository.owner.id="$GITHUB_REPOSITORY_OWNER_ID"
   _otel_resource_attribute string github.repository.owner.name="$GITHUB_REPOSITORY_OWNER"
+  printf '%s' "$repo_properties" | jq -r '.[] | select(.value != null and .value != "") | [.property_name, .value] | @tsv' | while IFS=$'\t' read -r key value; do
+    _otel_resource_attribute string "github.repository.property.$key=$value"
+  done
 }
 _otel_resource_attributes_custom() {
   _otel_resource_attribute string telemetry.sdk.language=github
 }
 
 otel_init
+cicd_pipeline_run_duration_handle="$(otel_counter_create counter cicd.pipeline.run.duration s 'Duration of a pipeline run grouped by pipeline, state and result')"
+cicd_pipeline_run_errors_handle="$(otel_counter_create counter cicd.pipeline.run.errors '{error}' 'The number of errors encountered in pipeline runs')"
 check_suite_counter_handle="$(otel_counter_create counter github.checks.suites 1 'Number of check suites')"
 check_suite_duration_counter_handle="$(otel_counter_create counter github.checks.suites.duration s 'Duration of check suites')"
 check_run_counter_handle="$(otel_counter_create counter github.checks.runs 1 'Number of check runs')"
@@ -98,7 +104,7 @@ check_suite_ended_at="$(jq < "$check_runs_json" -r .completed_at | sort -r | hea
 observation_handle="$(otel_observation_create 1)"
 otel_observation_attribute_typed "$observation_handle" string github.actions.checks.suite.id="$(jq < "$check_suite_json" .id)"
 otel_observation_attribute_typed "$observation_handle" string github.actions.checks.suite.conclusion="$(jq < "$check_suite_json" -r .conclusion)"
-otel_observation_attribute_typed "$observation_handle" string github.actions.checks.suite.ref="/refs/heads/$(jq < "$check_suite_json" -r .head_branch)"
+otel_observation_attribute_typed "$observation_handle" string github.actions.checks.suite.ref="refs/heads/$(jq < "$check_suite_json" -r .head_branch)"
 otel_observation_attribute_typed "$observation_handle" string github.actions.checks.suite.ref.sha="$(jq < "$check_suite_json" -r .head_sha)"
 otel_observation_attribute_typed "$observation_handle" string github.actions.checks.suite.ref.name="$(jq < "$check_suite_json" -r .head_branch)"
 otel_observation_attribute_typed "$observation_handle" string github.actions.checks.app.name="$(jq < "$check_suite_json" -r .app.name)"
@@ -108,7 +114,7 @@ otel_counter_observe "$check_suite_counter_handle" "$observation_handle"
 observation_handle="$(otel_observation_create "$(python3 -c "print(str(max(0, $(date -d "$check_suite_ended_at" '+%s.%N') - $(date -d "$check_suite_started_at" '+%s.%N'))))")")"
 otel_observation_attribute_typed "$observation_handle" string github.actions.checks.suite.id="$(jq < "$check_suite_json" .id)"
 otel_observation_attribute_typed "$observation_handle" string github.actions.checks.suite.conclusion="$(jq < "$check_suite_json" -r .conclusion)"
-otel_observation_attribute_typed "$observation_handle" string github.actions.checks.suite.ref="/refs/heads/$(jq < "$check_suite_json" -r .head_branch)"
+otel_observation_attribute_typed "$observation_handle" string github.actions.checks.suite.ref="refs/heads/$(jq < "$check_suite_json" -r .head_branch)"
 otel_observation_attribute_typed "$observation_handle" string github.actions.checks.suite.ref.sha="$(jq < "$check_suite_json" -r .head_sha)"
 otel_observation_attribute_typed "$observation_handle" string github.actions.checks.suite.ref.name="$(jq < "$check_suite_json" -r .head_branch)"
 otel_observation_attribute_typed "$observation_handle" string github.actions.checks.app.name="$(jq < "$check_suite_json" -r .app.name)"
@@ -119,7 +125,7 @@ check_suite_span_handle="$(otel_span_start @"$check_suite_started_at" CONSUMER "
 otel_span_attribute_typed "$check_suite_span_handle" string github.actions.type=checksuite
 otel_span_attribute_typed "$check_suite_span_handle" int github.actions.checks.suite.id="$(jq < "$check_suite_json" .id)"
 otel_span_attribute_typed "$check_suite_span_handle" string github.actions.conclusion="$(jq < "$check_suite_json" -r .conclusion)"
-otel_span_attribute_typed "$check_suite_span_handle" string github.actions.checks.suite.ref="/refs/heads/$(jq < "$check_suite_json" -r .head_branch)"
+otel_span_attribute_typed "$check_suite_span_handle" string github.actions.checks.suite.ref="refs/heads/$(jq < "$check_suite_json" -r .head_branch)"
 otel_span_attribute_typed "$check_suite_span_handle" string github.actions.checks.suite.ref.sha="$(jq < "$check_suite_json" -r .head_sha)"
 otel_span_attribute_typed "$check_suite_span_handle" string github.actions.checks.suite.ref.name="$(jq < "$check_suite_json" -r .head_branch)"
 otel_span_attribute_typed "$check_suite_span_handle" string github.actions.checks.app.name="$(jq < "$check_suite_json" -r .app.name)"
@@ -134,6 +140,24 @@ jq < "$check_runs_json" -r --unbuffered '. | ["'"$TRACEPARENT"'", .id, .conclusi
   if [ "$check_run_started_at" = null ] || [ -z "$check_run_started_at" ]; then continue; fi
   if [ "$check_run_completed_at" = null ] || [ -z "$check_run_completed_at" ]; then check_run_completed_at="$check_run_started_at"; fi
 
+  observation_handle="$(otel_observation_create "$(python3 -c "print(str(max(0, $(date -d "$check_run_completed_at" '+%s.%N') - $(date -d "$check_run_started_at" '+%s.%N'))))")")"
+  otel_observation_attribute_typed "$observation_handle" string cicd.pipeline.name="$check_run_name"
+  otel_observation_attribute_typed "$observation_handle" string cicd.pipeline.run.state=executing
+  case "$check_run_conclusion" in
+    neutral) otel_observation_attribute_typed "$observation_handle" string cicd.pipeline.result=success;;
+    skipped) otel_observation_attribute_typed "$observation_handle" string cicd.pipeline.result=skip;;
+    cancelled) otel_observation_attribute_typed "$observation_handle" string cicd.pipeline.result=cancellation;;
+    timed_out) otel_observation_attribute_typed "$observation_handle" string cicd.pipeline.result=timeout;;
+    *) otel_observation_attribute_typed "$observation_handle" string cicd.pipeline.result="$check_run_conclusion";;
+  esac
+  otel_counter_observe "$cicd_pipeline_run_duration_handle" "$observation_handle"
+
+  if [ "$check_run_conclusion" = failure ]; then
+    observation_handle="$(otel_observation_create 1)"
+    otel_observation_attribute_typed "$observation_handle" string cicd.pipeline.name="$check_run_name"
+    otel_counter_observe "$cicd_pipeline_run_errors_handle" "$observation_handle"
+  fi
+
   observation_handle="$(otel_observation_create 1)"
   otel_observation_attribute_typed "$observation_handle" string github.actions.checks.run.name="$check_run_name"
   otel_observation_attribute_typed "$observation_handle" string github.actions.checks.run.conclusion="$check_run_conclusion"
@@ -146,15 +170,26 @@ jq < "$check_runs_json" -r --unbuffered '. | ["'"$TRACEPARENT"'", .id, .conclusi
   otel_observation_attribute_typed "$observation_handle" string github.actions.checks.app.slug="$app_slug"
   otel_counter_observe "$check_run_duration_counter_handle" "$observation_handle"
 
-  check_run_span_handle="$(otel_span_start @"$check_run_started_at" CONSUMER "$check_run_name")"
+  check_run_span_handle="$(otel_span_start @"$check_run_started_at" SERVER "$check_run_name")"
+  otel_span_attribute_typed "$check_run_span_handle" string cicd.pipeline.run_id="$check_run_id"
+  otel_span_attribute_typed "$check_run_span_handle" string cicd.pipeline.name="$check_run_name"
+  otel_span_attribute_typed "$check_run_span_handle" string cicd.pipeline.action.name=RUN
+  otel_span_attribute_typed "$check_run_span_handle" string cicd.pipeline.run.url.full="$link"/"$check_run_id"
   otel_span_attribute_typed "$check_run_span_handle" string github.actions.type=check
-  otel_span_attribute_typed "$check_run_span_handle" string github.actions.url="$link"/"$check_run_id"
+  otel_span_attribute_typed "$check_run_span_handle" string github.actions.url.full="$link"/"$check_run_id"
   otel_span_attribute_typed "$check_run_span_handle" int github.actions.checks.run.id="$check_run_id"
   otel_span_attribute_typed "$check_run_span_handle" string github.actions.checks.run.name="$check_run_name"
   otel_span_attribute_typed "$check_run_span_handle" string github.actions.conclusion="$check_run_conclusion"
   otel_span_attribute_typed "$check_run_span_handle" string github.actions.checks.app.slug="$app_slug"
   [ -z "${INPUT_DEBUG}" ] || echo "span check $TRACEPARENT $check_run_name" >&2
-  if [ "$check_run_conclusion" = failure ]; then otel_span_error "$check_run_span_handle"; fi
+  case "$check_run_conclusion" in
+    failure) otel_span_attribute_typed "$check_run_span_handle" string cicd.pipeline.result=failure; otel_span_error "$check_run_span_handle";;
+    neutral) otel_span_attribute_typed "$check_run_span_handle" string cicd.pipeline.result=success;;
+    cancelled) otel_span_attribute_typed "$check_run_span_handle" string cicd.pipeline.result=cancellation;;
+    timed_out) otel_span_attribute_typed "$check_run_span_handle" string cicd.pipeline.result=timeout;;
+    skipped) otel_span_attribute_typed "$check_run_span_handle" string cicd.pipeline.result=skip;;
+    *) otel_span_attribute_typed "$check_run_span_handle" string cicd.pipeline.result="$check_run_conclusion";;
+  esac
   otel_span_end "$check_run_span_handle" @"$check_run_completed_at"
 done
 

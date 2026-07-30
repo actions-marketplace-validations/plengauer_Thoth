@@ -30,7 +30,7 @@ if ! \[ -w "$_otel_remote_sdk_stderr_redirect" ]; then _otel_remote_sdk_stderr_r
 _otel_shell="$(\readlink "/proc/$$/exe")"
 _otel_shell="${_otel_shell##*/}"
 if \[ "$_otel_shell" = busybox ]; then _otel_shell="busybox sh"; fi
-if \[ "${OTEL_SHELL_COMMANDLINE_OVERRIDE_SIGNATURE:-}" = 0 ] || \[ "${OTEL_SHELL_COMMANDLINE_OVERRIDE_SIGNATURE:-}" = "$PPID" ] || \[ "${PPID:-}" = 0 ] || \[ "$(\tr '\000-\037' ' ' < /proc/$PPID/cmdline)" = "$(\tr '\000-\037' ' ' < /proc/${OTEL_SHELL_COMMANDLINE_OVERRIDE_SIGNATURE:-}/cmdline)" ]; then _otel_commandline_override="$OTEL_SHELL_COMMANDLINE_OVERRIDE"; fi
+if \[ "${OTEL_SHELL_COMMANDLINE_OVERRIDE_SIGNATURE:-}" = 0 ] || \[ "${OTEL_SHELL_COMMANDLINE_OVERRIDE_SIGNATURE:-}" = "$PPID" ] || \[ "${PPID:-}" = 0 ] || { \[ -r /proc/$PPID/cmdline ] && \[ -r "/proc/${OTEL_SHELL_COMMANDLINE_OVERRIDE_SIGNATURE:-}/cmdline" ] && \[ "$(\tr '\000-\037' ' ' < /proc/$PPID/cmdline)" = "$(\tr '\000-\037' ' ' < /proc/${OTEL_SHELL_COMMANDLINE_OVERRIDE_SIGNATURE:-}/cmdline)" ]; }; then _otel_commandline_override="$OTEL_SHELL_COMMANDLINE_OVERRIDE"; fi
 unset OTEL_SHELL_COMMANDLINE_OVERRIDE
 unset OTEL_SHELL_COMMANDLINE_OVERRIDE_SIGNATURE
 unset OTEL_SHELL_COMMAND_TYPE_OVERRIDE
@@ -163,7 +163,7 @@ else
 fi
 
 _otel_resolve_package_version() {
-  (\dpkg -s "$1" || \rpm -qi "$1" || \apk version "$1" | \tail -n 1 | \cut -d - -f 2 | { \echo -n 'Version: '; \cat; }) 2> /dev/null | \grep Version | \cut -d : -f 2 | tr -d ' ' || \true
+  (\dpkg -s "$1" || \rpm -qi "$1" || \apk version "$1" | \tail -n 1 | \cut -d ' ' -f 3 | \cut -d - -f 1 | { \echo -n 'Version: '; \cat; }) 2> /dev/null | \grep Version | \cut -d : -f 2 | tr -d ' ' || \true
 }
 
 otel_span_current() {
@@ -317,10 +317,16 @@ otel_counter_create() {
   local type="$1"
   local name="$2"
   local unit="${3:-1}"
-  local description="${4:-}"
   local response_pipe="$(\mktemp -u -p "$_otel_shell_pipe_dir" opentelemetry_shell.$$.counter_handle.pipe.XXXXXXXXXX)"
   \mkfifo ${_otel_mkfifo_flags:-} "$response_pipe"
-  _otel_sdk_communicate "COUNTER_CREATE" "$response_pipe" "$type" "$name" "$unit" "$description"
+  if \[ "$type" = histogram ]; then
+    local buckets="${4:-}"
+    local description="${5:-}"
+    _otel_sdk_communicate "COUNTER_CREATE" "$response_pipe" "$type" "$name" "$unit" "$buckets" "$description"
+  else
+    local description="${4:-}"
+    _otel_sdk_communicate "COUNTER_CREATE" "$response_pipe" "$type" "$name" "$unit" "$description"
+  fi
   local handle
   \read handle < "$response_pipe" || \true
   \echo "$handle"
@@ -425,22 +431,22 @@ otel_observe() {
 
 if ! \type which 1> /dev/null 2> /dev/null; then
   if \[ "$_otel_shell" = bash ]; then
-    which() {
-      \type -P "$1"
-    }
+which () {
+  \type -P "$1"
+}
   else
-    which() {
-      if \[ -x "$1" ]; then \echo "$1"; return 0; fi
-      local IFS=:
-      for directory in $PATH; do
-        local path="$directory"/"$1"
-        if \[ -x "$path" ]; then
-          \echo "$path"
-          return 0
-        fi
-      done
-      return 1
-    }
+which () {
+  if \[ -x "$1" ]; then \echo "$1"; return 0; fi
+  local IFS=:
+  for directory in $PATH; do
+    local path="$directory"/"$1"
+    if \[ -x "$path" ]; then
+      \echo "$path"
+      return 0
+    fi
+  done
+  return 1
+}
   fi
 fi
 

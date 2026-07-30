@@ -167,7 +167,7 @@ Both methods of instrumentation can be combined arbitrarily. Deploying them both
 To steer roadmap and maintenance efforts, job-level and workflow-level instrumentations report high-level usage metrics to the maintainers. This data includes invocation counts of the individual instrumentations and features therein, as well as resuable action names (e.g., `actions/checkout`), runner operating systems (e.g., `ubuntu`), architectures (e.g., `x64`) and types (e.g., `self-hosted`). The data is automatically collected for all repositories that are hosted on GitHub SaaS. For self-hosted GitHub servers, no data at all is collected. In all cases, no workflow data, code, secrets, artifacts, dynamic data or any personal data is collected. This default behavior can be overwritten on job-level and workflow-level instrumentations with the `self_monitoring` and `self_monitoring_anonymize` parameters.
 
 ### Automatic Deployment of Workflow-level and Job-level Instrumentations
-To automatically deploy workflow-level and job-level instrumentations to all your GitHub actions, copy the following workflow into your `.github/workflows` directory. Make sure, the GitHub token has permissions to open pull requests (configurable in the repository settings) or specify a token with the correct permissions explicitly with the `github_token` parameter. This workflow will also update instrumentations when a new workflow is created. The configuration in the `env` section will be deployed to all instrumentations.
+To automatically deploy workflow-level and job-level instrumentations to all your GitHub actions, copy the following workflow into your `.github/workflows` directory. Make sure, the GitHub token has permissions to push contents or open pull requests (configurable in the repository settings) or specify a token with the correct permissions explicitly with the `github_token` parameter. This workflow will also update instrumentations when a new workflow is created. The configuration in the `env` section will be deployed to all instrumentations.
 ```yaml
 name: 'Deploy OpenTelemetry'
 
@@ -181,7 +181,7 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     concurrency:
-      group: otel-deploy-job
+      group: otel-deploy-job-${{ github.ref_name }}
     steps:
       - uses: plengauer/Thoth/actions/instrument/deploy@v5
         env:
@@ -357,7 +357,7 @@ otel_observe cat file.txt
 Please note, that this command will not perform injection or context propagation. This can only be done via the fully automatic approach described above.
 
 ## Metrics
-To record metric data points, first create a new counter with a type, name, unit, and description. Valid types are `counter`, `up_down_counter`, and `gauge` as well as `observable_counter`, `observable_up_down_counter`, and `observable_gauge`. Then create an observation with the amount and arbitrary attributes. The observable counters will continuously report every observation until its replaced with another observation with the same attribute values. The returned counter handle is used to observe data points and their attributes. Valid observation attribute types are `string`, `int`, `float`, and `auto`. The `auto` type will try to guess the type based on the value.
+To record metric data points, first create a new counter with a type, name, unit, and description. Valid types are `counter`, `up_down_counter`, `gauge`, and `histogram` as well as `observable_counter`, `observable_up_down_counter`, and `observable_gauge`. Then create an observation with the amount and arbitrary attributes. The observable counters will continuously report every observation until its replaced with another observation with the same attribute values. The returned counter handle is used to observe data points and their attributes. Valid observation attribute types are `string`, `int`, `float`, and `auto`. The `auto` type will try to guess the type based on the value.
 ```bash
 counter_handle="$(otel_counter_create up_down_counter my.metric MB 'this is an example metric')"
 observation_handle="$(otel_observation_create 5)"
@@ -368,6 +368,20 @@ observation_handle="$(otel_observation_create -3)"
 otel_observation_attribute "$observation_handle" key=value
 otel_observation_attribute_typed "$observation_handle" string foo=bar
 otel_counter_observe "$counter_handle" "$observation_handle"
+```
+
+For histograms, you can optionally specify explicit bucket boundaries as a comma-separated list of values as an additional parameter after the unit. Currently, histograms use default buckets; explicit bucket boundary configuration via Views is planned for a future enhancement:
+```bash
+# Histogram without explicit buckets (uses defaults)
+histogram_handle="$(otel_counter_create histogram my.duration.histogram ms '' 'this is a histogram metric')"
+observation_handle="$(otel_observation_create 2.5)"
+otel_observation_attribute "$observation_handle" operation=fetch
+otel_counter_observe "$histogram_handle" "$observation_handle"
+
+# Histogram with explicit buckets (parameter accepted for future use)
+histogram_handle="$(otel_counter_create histogram my.duration.histogram ms '0.1,0.5,1.0,5.0,10.0' 'histogram with explicit buckets')"
+observation_handle="$(otel_observation_create 2.5)"
+otel_counter_observe "$histogram_handle" "$observation_handle"
 ```
 
 ## Logs
