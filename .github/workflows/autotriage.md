@@ -8,11 +8,15 @@ on:
 permissions:
   contents: read
   issues: read
+  actions: read
 tools:
   github:
-    toolsets: [context, repos, issues, labels]
+    toolsets: [context, repos, issues, labels, actions]
   web-search:
   web-fetch:
+user-rate-limit:
+  max-runs-per-window: 3
+  window: 60
 safe-outputs:
   add-labels:
   add-comment:

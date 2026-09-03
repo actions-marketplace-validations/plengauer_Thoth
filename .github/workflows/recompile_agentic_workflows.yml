@@ -20,7 +20,7 @@ jobs:
       pull-requests: write
       actions: read
     steps:
-      - uses: plengauer/opentelemetry-github/actions/instrument/job@2169fb0fa9a8260fde99a2a185bbf99a5d63546e # v5.59.0
+      - uses: plengauer/opentelemetry-github/actions/instrument/job@be259b5ae1e13e2398a8b96dce8baeaddac0663d # v5.61.2
         with:
           secrets_to_redact: '["${{ github.token }}","${{ secrets.ACTIONS_GITHUB_TOKEN }}"]'
         env:
@@ -34,6 +34,10 @@ jobs:
         run: |
           gh extension install github/gh-aw
           gh aw compile --approve
+      - uses: plengauer/opentelemetry-github/actions/instrument/deploy-local@be259b5ae1e13e2398a8b96dce8baeaddac0663d # v5.61.2
+        with:
+          github_token: ${{ secrets.ACTIONS_GITHUB_TOKEN }}
+          job_level_instrumentation_exclude: 'Refresh Demos,Test Package Repositories,Shell,GitHub,Workflow Example,Experiment'
       - id: push
         run: |
           if [ -z "$(git status --porcelain)" ]; then exit 0; fi

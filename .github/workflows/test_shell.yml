@@ -12,7 +12,6 @@ jobs:
         runner: ['ubuntu-latest', 'ubuntu-24.04-arm']
       fail-fast: false
     runs-on: ${{ matrix.runner }}
-    timeout-minutes: 30
     permissions:
       contents: read
       actions: read
@@ -36,7 +35,7 @@ jobs:
     permissions:
       actions: read
     steps:
-      - uses: plengauer/opentelemetry-github/actions/instrument/job@2169fb0fa9a8260fde99a2a185bbf99a5d63546e # v5.59.0
+      - uses: plengauer/opentelemetry-github/actions/instrument/job@be259b5ae1e13e2398a8b96dce8baeaddac0663d # v5.61.2
         with:
           secrets_to_redact: '["${{ github.token }}"]'
         env:
@@ -79,7 +78,7 @@ jobs:
     permissions:
       actions: read
     steps:
-      - uses: plengauer/opentelemetry-github/actions/instrument/job@2169fb0fa9a8260fde99a2a185bbf99a5d63546e # v5.59.0
+      - uses: plengauer/opentelemetry-github/actions/instrument/job@be259b5ae1e13e2398a8b96dce8baeaddac0663d # v5.61.2
         with:
           secrets_to_redact: '["${{ github.token }}","${{ secrets.DOCKERHUB_TOKEN }}","${{ secrets.DOCKERHUB_USERNAME }}"]'
         env:
@@ -99,7 +98,6 @@ jobs:
         with:
           pattern: packages.*.${{ inputs.ref }}
           merge-multiple: true
-      - run: ls
       - if: ${{ hashFiles('images.json') == '' }}
         run: |
           sudo docker login -u '${{ secrets.DOCKERHUB_USERNAME }}' -p '${{ secrets.DOCKERHUB_TOKEN }}'
@@ -136,7 +134,7 @@ jobs:
       contents: read
       actions: read
     steps:
-      - uses: plengauer/opentelemetry-github/actions/instrument/job@2169fb0fa9a8260fde99a2a185bbf99a5d63546e # v5.59.0
+      - uses: plengauer/opentelemetry-github/actions/instrument/job@be259b5ae1e13e2398a8b96dce8baeaddac0663d # v5.61.2
         with:
           secrets_to_redact: '["${{ github.token }}"]'
         env:
@@ -169,7 +167,7 @@ jobs:
         with:
           name: packages.deb.${{ inputs.ref }}
       - run: |
-          sudo docker run -v $(pwd)/opentelemetry-shell_"$(cat VERSION)"_all.deb:/root/package.deb --rm --network=host -i --entrypoint=/bin/sh ${{ matrix.image }} -e <<EOF
+          sudo docker run -v "$(pwd)/opentelemetry-shell_$(cat VERSION)_all.deb:/root/package.deb" --rm --network=host -i --entrypoint=/bin/sh ${{ matrix.image }} -e <<EOF
           apt-get update
           apt-get -y install /root/package.deb
           apt-get update && DEBIAN_FRONTEND=noninteractive apt-get -y dist-upgrade && apt-get -y autoremove && apt-get -y autoclean
@@ -200,7 +198,7 @@ jobs:
       contents: read
       actions: read
     steps:
-      - uses: plengauer/opentelemetry-github/actions/instrument/job@2169fb0fa9a8260fde99a2a185bbf99a5d63546e # v5.59.0
+      - uses: plengauer/opentelemetry-github/actions/instrument/job@be259b5ae1e13e2398a8b96dce8baeaddac0663d # v5.61.2
         with:
           secrets_to_redact: '["${{ github.token }}"]'
         env:
@@ -237,7 +235,7 @@ jobs:
       - env:
           DEPENDENCY: ${{ matrix.dependency }}
         run: |
-          sudo -E docker run --mount type=bind,src=$(pwd)/opentelemetry-shell_"$(cat VERSION)"_all.deb,dst=/root/package.deb --mount type=bind,src="$(pwd)"/opentelemetry-shell-"$(cat VERSION)"-1.noarch.rpm,dst=/root/package.rpm --mount type=bind,src="$(pwd)"/opentelemetry-shell-"$(cat VERSION)"-r0.apk,dst=/root/package.apk --rm --network=host -e DEPENDENCY -i --entrypoint=/bin/sh ${{ matrix.image }} -e <<EOF
+          sudo -E docker run --mount "type=bind,src=$(pwd)/opentelemetry-shell_$(cat VERSION)_all.deb,dst=/root/package.deb" --mount "type=bind,src=$(pwd)/opentelemetry-shell-$(cat VERSION)-1.noarch.rpm,dst=/root/package.rpm" --mount "type=bind,src=$(pwd)/opentelemetry-shell-$(cat VERSION)-r0.apk,dst=/root/package.apk" --rm --network=host -e DEPENDENCY -i --entrypoint=/bin/sh ${{ matrix.image }} -e <<EOF
           if type apt-get; then
             apt-get update
             apt-get -y remove $DEPENDENCY
@@ -331,7 +329,7 @@ jobs:
         with:
           pattern: packages.*.${{ inputs.ref }}
           merge-multiple: true
-      - run: mv *.deb *.rpm *.apk tests
+      - run: mv ./*.deb ./*.rpm ./*.apk tests
       - run: bash -c 'cd tests && bash run_tests_containerized.sh "${{ matrix.image }}" "${{ matrix.update }}" "${{ matrix.shell }}"'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -367,7 +365,7 @@ jobs:
             sudo -E apt-get -y install "$package" || true
           done
           [ ${{ matrix.shell }} = sh ] || sudo -E apt-get -y install ${{ matrix.shell }} || exit 0
-          dos2unix tests/*.sh tests/*/*
+          find . \( -name '*.sh' -o -name '*.bash' \) | xargs dos2unix
           bash -c "cd tests && bash run_tests.sh ${{ matrix.shell }}"
           sudo apt-get -y remove opentelemetry-shell
         env:
@@ -381,7 +379,7 @@ jobs:
       contents: read
       actions: read
     steps:
-      - uses: plengauer/opentelemetry-github/actions/instrument/job@2169fb0fa9a8260fde99a2a185bbf99a5d63546e # v5.59.0
+      - uses: plengauer/opentelemetry-github/actions/instrument/job@be259b5ae1e13e2398a8b96dce8baeaddac0663d # v5.61.2
         env:
           OTEL_EXPORTER_OTLP_ENDPOINT: '${{ secrets.OTEL_EXPORTER_OTLP_ENDPOINT }}'
           OTEL_EXPORTER_OTLP_HEADERS: '${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}'
@@ -420,7 +418,7 @@ jobs:
       - run: |
           export OTEL_SHELL_SDK_OUTPUT_REDIRECT=/dev/null
           command time -f '%U' bash -c '. /usr/bin/opentelemetry_shell.sh' 2>> performance.${{ matrix.version }}.coldstart.list
-          for i in $(seq 1 100); do command time -f '%U' bash -c '. /usr/bin/opentelemetry_shell.sh' 2>> performance.${{ matrix.version }}.warmstart.list; done
+          for _ in $(seq 1 100); do command time -f '%U' bash -c '. /usr/bin/opentelemetry_shell.sh' 2>> performance.${{ matrix.version }}.warmstart.list; done
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: performance.${{ matrix.version }}.coldstart.list
@@ -437,7 +435,7 @@ jobs:
     permissions:
       actions: read
     steps:
-      - uses: plengauer/opentelemetry-github/actions/instrument/job@2169fb0fa9a8260fde99a2a185bbf99a5d63546e # v5.59.0
+      - uses: plengauer/opentelemetry-github/actions/instrument/job@be259b5ae1e13e2398a8b96dce8baeaddac0663d # v5.61.2
         with:
           secrets_to_redact: '["${{ github.token }}"]'
         env:
@@ -449,8 +447,8 @@ jobs:
           merge-multiple: true
       - run: |
           for file in performance.*.list; do
-            type=$(echo $file | rev | cut -d . -f 2 | rev)
-            version=$(echo $file | cut -d . -f 2- | rev | cut -d . -f 3- | rev)
+            type=$(echo "$file" | rev | cut -d . -f 2 | rev)
+            version=$(echo "$file" | cut -d . -f 2- | rev | cut -d . -f 3- | rev)
             cat "$file" | grep -v 'No such file or directory' | sort -n | head -n 1 | xargs echo "$version" >> "$type".list
           done
       - run: sudo apt-get update && sudo apt-get install -y gnuplot-nox

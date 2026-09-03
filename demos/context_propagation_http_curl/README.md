@@ -1,14 +1,14 @@
 # Demo "Context Propagation with curl"
 This script shows context propagation via HTTP from a client (curl) to a server (ncat).
 ## Script
-```sh
+```bash
 otel4netcat_http ncat -l -c 'printf "HTTP/1.1 418 I'\''m a teapot\r\n\r\n"' 12345 & # fake http server
 sleep 5
 . otel.sh
 curl http://127.0.0.1:12345
 ```
 ## Trace Structure Overview
-```
+```bash
 send/receive
 bash -e demo.sh
   curl http://127.0.0.1:12345
@@ -17,16 +17,16 @@ bash -e demo.sh
         printf HTTP/1.1 418 I'm a teapot
 ```
 ## Full Trace
-```
+```json
 {
-  "trace_id": "909dcbc3e0e7e1a45df33990e2264368",
-  "span_id": "e3faebc1ea37b6cf",
-  "parent_span_id": "80f4656a43ffed72",
+  "trace_id": "e374321e80825fe91a66dd8b1907d889",
+  "span_id": "a008721bf3404f52",
+  "parent_span_id": "78fc720d5db3fcbf",
   "name": "GET",
   "kind": "CLIENT",
   "status": "ERROR",
-  "time_start": 1763806186180678912,
-  "time_end": 1763806186982928384,
+  "time_start": 1787425159571549696,
+  "time_end": 1787425160407027200,
   "attributes": {
     "network.transport": "tcp",
     "network.protocol.name": "http",
@@ -50,29 +50,29 @@ bash -e demo.sh
       "*/*"
     ],
     "http.request.header.traceparent": [
-      "00-909dcbc3e0e7e1a45df33990e2264368-e3faebc1ea37b6cf-01"
+      "00-e374321e80825fe91a66dd8b1907d889-78fc720d5db3fcbf-03"
     ],
     "http.response.status_code": 418
   },
   "resource_attributes": {
     "telemetry.sdk.language": "shell",
     "telemetry.sdk.name": "opentelemetry",
-    "telemetry.sdk.version": "5.36.0",
+    "telemetry.sdk.version": "5.61.1",
+    "service.instance.id": "737d56e1-3b50-43f7-8d06-e86ad1e83bfc",
     "service.name": "unknown_service",
     "azure.vm.scaleset.name": "",
     "azure.vm.sku": "",
     "cloud.platform": "azure_vm",
     "cloud.provider": "azure",
     "cloud.region": "eastus",
-    "cloud.resource_id": "/subscriptions/88e1176b-6f3d-4789-b097-47787cd24789/resourceGroups/azure-eastus-general-88e1176b-6f3d-4789-b097-47787cd24789/providers/Microsoft.Compute/virtualMachines/iAWAqVnIh6xdgf",
-    "host.id": "3a57a563-473e-4a0b-a561-35beb0f36ba2",
-    "host.name": "iAWAqVnIh6xdgf",
+    "cloud.resource_id": "/subscriptions/5b657522-5fd8-413b-b73f-a58e557af882/resourceGroups/azure-eastus-general-5b657522-5fd8-413b-b73f-a58e557af882/providers/Microsoft.Compute/virtualMachines/wBUKH0S2dTGAsB",
+    "host.id": "6ee932f2-688c-4c31-a47f-3709ba0abfc4",
+    "host.name": "wBUKH0S2dTGAsB",
     "host.type": "Standard_D4ads_v5",
     "os.type": "linux",
-    "os.version": "6.11.0-1018-azure",
-    "service.instance.id": "3a57a563-473e-4a0b-a561-35beb0f36ba2",
-    "process.pid": 3082,
-    "process.parent_pid": 2517,
+    "os.version": "6.17.0-1022-azure",
+    "process.pid": 3544,
+    "process.parent_pid": 2964,
     "process.executable.name": "bash",
     "process.executable.path": "/usr/bin/bash",
     "process.command_line": "bash -e demo.sh",
@@ -87,22 +87,22 @@ bash -e demo.sh
   "events": []
 }
 {
-  "trace_id": "909dcbc3e0e7e1a45df33990e2264368",
-  "span_id": "08808c5f639564d0",
-  "parent_span_id": "e3faebc1ea37b6cf",
+  "trace_id": "e374321e80825fe91a66dd8b1907d889",
+  "span_id": "cd57ada7a3655289",
+  "parent_span_id": "a008721bf3404f52",
   "name": "GET",
   "kind": "SERVER",
   "status": "UNSET",
-  "time_start": 1763806186847592704,
-  "time_end": 1763806186936519680,
+  "time_start": 1787425160261564928,
+  "time_end": 1787425160358548992,
   "attributes": {
     "network.transport": "TCP",
     "network.peer.address": "127.0.0.1",
-    "network.peer.port": 41758,
+    "network.peer.port": 55024,
     "server.address": "127.0.0.1",
     "server.port": 12345,
     "client.address": "127.0.0.1",
-    "client.port": 41758,
+    "client.port": 55024,
     "network.protocol.name": "http",
     "network.protocol.version": "1.1",
     "url.full": "http://:12345/",
@@ -116,22 +116,22 @@ bash -e demo.sh
   "resource_attributes": {
     "telemetry.sdk.language": "shell",
     "telemetry.sdk.name": "opentelemetry",
-    "telemetry.sdk.version": "5.36.0",
+    "telemetry.sdk.version": "5.61.1",
+    "service.instance.id": "38bf8b45-ffc0-441e-aac3-df249844b5db",
     "service.name": "unknown_service",
     "azure.vm.scaleset.name": "",
     "azure.vm.sku": "",
     "cloud.platform": "azure_vm",
     "cloud.provider": "azure",
     "cloud.region": "eastus",
-    "cloud.resource_id": "/subscriptions/88e1176b-6f3d-4789-b097-47787cd24789/resourceGroups/azure-eastus-general-88e1176b-6f3d-4789-b097-47787cd24789/providers/Microsoft.Compute/virtualMachines/iAWAqVnIh6xdgf",
-    "host.id": "3a57a563-473e-4a0b-a561-35beb0f36ba2",
-    "host.name": "iAWAqVnIh6xdgf",
+    "cloud.resource_id": "/subscriptions/5b657522-5fd8-413b-b73f-a58e557af882/resourceGroups/azure-eastus-general-5b657522-5fd8-413b-b73f-a58e557af882/providers/Microsoft.Compute/virtualMachines/wBUKH0S2dTGAsB",
+    "host.id": "6ee932f2-688c-4c31-a47f-3709ba0abfc4",
+    "host.name": "wBUKH0S2dTGAsB",
     "host.type": "Standard_D4ads_v5",
     "os.type": "linux",
-    "os.version": "6.11.0-1018-azure",
-    "service.instance.id": "3a57a563-473e-4a0b-a561-35beb0f36ba2",
-    "process.pid": 4051,
-    "process.parent_pid": 4049,
+    "os.version": "6.17.0-1022-azure",
+    "process.pid": 4442,
+    "process.parent_pid": 4441,
     "process.executable.name": "dash",
     "process.executable.path": "/usr/bin/dash",
     "process.command_line": "/bin/sh -e /usr/bin/otel4netcat_handler printf HTTP/1.1 418 I'm a teapot",
@@ -144,42 +144,42 @@ bash -e demo.sh
   },
   "links": [
     {
-      "trace_id": "900101f96b558a747b8d5929ccac187c",
-      "span_id": "5ee68fb10df0d60d",
+      "trace_id": "2663cb99103133c10c332b875d011ef7",
+      "span_id": "197c46d6f0ccd0f2",
       "attributes": {}
     }
   ],
   "events": []
 }
 {
-  "trace_id": "909dcbc3e0e7e1a45df33990e2264368",
-  "span_id": "02c7eec87a663c5f",
+  "trace_id": "e374321e80825fe91a66dd8b1907d889",
+  "span_id": "7e88274ef52bd23c",
   "parent_span_id": null,
   "name": "bash -e demo.sh",
   "kind": "SERVER",
   "status": "UNSET",
-  "time_start": 1763806186117126144,
-  "time_end": 1763806186986460928,
+  "time_start": 1787425159514840832,
+  "time_end": 1787425160408602112,
   "attributes": {},
   "resource_attributes": {
     "telemetry.sdk.language": "shell",
     "telemetry.sdk.name": "opentelemetry",
-    "telemetry.sdk.version": "5.36.0",
+    "telemetry.sdk.version": "5.61.1",
+    "service.instance.id": "737d56e1-3b50-43f7-8d06-e86ad1e83bfc",
     "service.name": "unknown_service",
     "azure.vm.scaleset.name": "",
     "azure.vm.sku": "",
     "cloud.platform": "azure_vm",
     "cloud.provider": "azure",
     "cloud.region": "eastus",
-    "cloud.resource_id": "/subscriptions/88e1176b-6f3d-4789-b097-47787cd24789/resourceGroups/azure-eastus-general-88e1176b-6f3d-4789-b097-47787cd24789/providers/Microsoft.Compute/virtualMachines/iAWAqVnIh6xdgf",
-    "host.id": "3a57a563-473e-4a0b-a561-35beb0f36ba2",
-    "host.name": "iAWAqVnIh6xdgf",
+    "cloud.resource_id": "/subscriptions/5b657522-5fd8-413b-b73f-a58e557af882/resourceGroups/azure-eastus-general-5b657522-5fd8-413b-b73f-a58e557af882/providers/Microsoft.Compute/virtualMachines/wBUKH0S2dTGAsB",
+    "host.id": "6ee932f2-688c-4c31-a47f-3709ba0abfc4",
+    "host.name": "wBUKH0S2dTGAsB",
     "host.type": "Standard_D4ads_v5",
     "os.type": "linux",
-    "os.version": "6.11.0-1018-azure",
-    "service.instance.id": "3a57a563-473e-4a0b-a561-35beb0f36ba2",
-    "process.pid": 3082,
-    "process.parent_pid": 2517,
+    "os.version": "6.17.0-1022-azure",
+    "process.pid": 3544,
+    "process.parent_pid": 2964,
     "process.executable.name": "bash",
     "process.executable.path": "/usr/bin/bash",
     "process.command_line": "bash -e demo.sh",
@@ -194,14 +194,14 @@ bash -e demo.sh
   "events": []
 }
 {
-  "trace_id": "909dcbc3e0e7e1a45df33990e2264368",
-  "span_id": "80f4656a43ffed72",
-  "parent_span_id": "02c7eec87a663c5f",
+  "trace_id": "e374321e80825fe91a66dd8b1907d889",
+  "span_id": "78fc720d5db3fcbf",
+  "parent_span_id": "7e88274ef52bd23c",
   "name": "curl http://127.0.0.1:12345",
   "kind": "INTERNAL",
   "status": "UNSET",
-  "time_start": 1763806186129125376,
-  "time_end": 1763806186986278912,
+  "time_start": 1787425159522633984,
+  "time_end": 1787425160408399872,
   "attributes": {
     "shell.command_line": "curl http://127.0.0.1:12345",
     "shell.command": "curl",
@@ -216,22 +216,22 @@ bash -e demo.sh
   "resource_attributes": {
     "telemetry.sdk.language": "shell",
     "telemetry.sdk.name": "opentelemetry",
-    "telemetry.sdk.version": "5.36.0",
+    "telemetry.sdk.version": "5.61.1",
+    "service.instance.id": "737d56e1-3b50-43f7-8d06-e86ad1e83bfc",
     "service.name": "unknown_service",
     "azure.vm.scaleset.name": "",
     "azure.vm.sku": "",
     "cloud.platform": "azure_vm",
     "cloud.provider": "azure",
     "cloud.region": "eastus",
-    "cloud.resource_id": "/subscriptions/88e1176b-6f3d-4789-b097-47787cd24789/resourceGroups/azure-eastus-general-88e1176b-6f3d-4789-b097-47787cd24789/providers/Microsoft.Compute/virtualMachines/iAWAqVnIh6xdgf",
-    "host.id": "3a57a563-473e-4a0b-a561-35beb0f36ba2",
-    "host.name": "iAWAqVnIh6xdgf",
+    "cloud.resource_id": "/subscriptions/5b657522-5fd8-413b-b73f-a58e557af882/resourceGroups/azure-eastus-general-5b657522-5fd8-413b-b73f-a58e557af882/providers/Microsoft.Compute/virtualMachines/wBUKH0S2dTGAsB",
+    "host.id": "6ee932f2-688c-4c31-a47f-3709ba0abfc4",
+    "host.name": "wBUKH0S2dTGAsB",
     "host.type": "Standard_D4ads_v5",
     "os.type": "linux",
-    "os.version": "6.11.0-1018-azure",
-    "service.instance.id": "3a57a563-473e-4a0b-a561-35beb0f36ba2",
-    "process.pid": 3082,
-    "process.parent_pid": 2517,
+    "os.version": "6.17.0-1022-azure",
+    "process.pid": 3544,
+    "process.parent_pid": 2964,
     "process.executable.name": "bash",
     "process.executable.path": "/usr/bin/bash",
     "process.command_line": "bash -e demo.sh",
@@ -246,14 +246,14 @@ bash -e demo.sh
   "events": []
 }
 {
-  "trace_id": "909dcbc3e0e7e1a45df33990e2264368",
-  "span_id": "361868f37322c256",
-  "parent_span_id": "08808c5f639564d0",
+  "trace_id": "e374321e80825fe91a66dd8b1907d889",
+  "span_id": "916b15736baaccb8",
+  "parent_span_id": "cd57ada7a3655289",
   "name": "printf HTTP/1.1 418 I'm a teapot",
   "kind": "INTERNAL",
   "status": "UNSET",
-  "time_start": 1763806186857378816,
-  "time_end": 1763806186866608128,
+  "time_start": 1787425160272289792,
+  "time_end": 1787425160281876736,
   "attributes": {
     "shell.command_line": "printf HTTP/1.1 418 I'm a teapot",
     "shell.command": "printf",
@@ -265,22 +265,22 @@ bash -e demo.sh
   "resource_attributes": {
     "telemetry.sdk.language": "shell",
     "telemetry.sdk.name": "opentelemetry",
-    "telemetry.sdk.version": "5.36.0",
+    "telemetry.sdk.version": "5.61.1",
+    "service.instance.id": "38bf8b45-ffc0-441e-aac3-df249844b5db",
     "service.name": "unknown_service",
     "azure.vm.scaleset.name": "",
     "azure.vm.sku": "",
     "cloud.platform": "azure_vm",
     "cloud.provider": "azure",
     "cloud.region": "eastus",
-    "cloud.resource_id": "/subscriptions/88e1176b-6f3d-4789-b097-47787cd24789/resourceGroups/azure-eastus-general-88e1176b-6f3d-4789-b097-47787cd24789/providers/Microsoft.Compute/virtualMachines/iAWAqVnIh6xdgf",
-    "host.id": "3a57a563-473e-4a0b-a561-35beb0f36ba2",
-    "host.name": "iAWAqVnIh6xdgf",
+    "cloud.resource_id": "/subscriptions/5b657522-5fd8-413b-b73f-a58e557af882/resourceGroups/azure-eastus-general-5b657522-5fd8-413b-b73f-a58e557af882/providers/Microsoft.Compute/virtualMachines/wBUKH0S2dTGAsB",
+    "host.id": "6ee932f2-688c-4c31-a47f-3709ba0abfc4",
+    "host.name": "wBUKH0S2dTGAsB",
     "host.type": "Standard_D4ads_v5",
     "os.type": "linux",
-    "os.version": "6.11.0-1018-azure",
-    "service.instance.id": "3a57a563-473e-4a0b-a561-35beb0f36ba2",
-    "process.pid": 4051,
-    "process.parent_pid": 4049,
+    "os.version": "6.17.0-1022-azure",
+    "process.pid": 4442,
+    "process.parent_pid": 4441,
     "process.executable.name": "dash",
     "process.executable.path": "/usr/bin/dash",
     "process.command_line": "/bin/sh -e /usr/bin/otel4netcat_handler printf HTTP/1.1 418 I'm a teapot",
@@ -295,42 +295,42 @@ bash -e demo.sh
   "events": []
 }
 {
-  "trace_id": "900101f96b558a747b8d5929ccac187c",
-  "span_id": "5ee68fb10df0d60d",
+  "trace_id": "2663cb99103133c10c332b875d011ef7",
+  "span_id": "197c46d6f0ccd0f2",
   "parent_span_id": null,
   "name": "send/receive",
   "kind": "CONSUMER",
   "status": "UNSET",
-  "time_start": 1763806186768383744,
-  "time_end": 1763806186938698240,
+  "time_start": 1787425160171105024,
+  "time_end": 1787425160361020160,
   "attributes": {
     "network.transport": "TCP",
     "network.peer.address": "127.0.0.1",
-    "network.peer.port": 41758,
+    "network.peer.port": 55024,
     "server.address": "127.0.0.1",
     "server.port": 12345,
     "client.address": "127.0.0.1",
-    "client.port": 41758
+    "client.port": 55024
   },
   "resource_attributes": {
     "telemetry.sdk.language": "shell",
     "telemetry.sdk.name": "opentelemetry",
-    "telemetry.sdk.version": "5.36.0",
+    "telemetry.sdk.version": "5.61.1",
+    "service.instance.id": "38bf8b45-ffc0-441e-aac3-df249844b5db",
     "service.name": "unknown_service",
     "azure.vm.scaleset.name": "",
     "azure.vm.sku": "",
     "cloud.platform": "azure_vm",
     "cloud.provider": "azure",
     "cloud.region": "eastus",
-    "cloud.resource_id": "/subscriptions/88e1176b-6f3d-4789-b097-47787cd24789/resourceGroups/azure-eastus-general-88e1176b-6f3d-4789-b097-47787cd24789/providers/Microsoft.Compute/virtualMachines/iAWAqVnIh6xdgf",
-    "host.id": "3a57a563-473e-4a0b-a561-35beb0f36ba2",
-    "host.name": "iAWAqVnIh6xdgf",
+    "cloud.resource_id": "/subscriptions/5b657522-5fd8-413b-b73f-a58e557af882/resourceGroups/azure-eastus-general-5b657522-5fd8-413b-b73f-a58e557af882/providers/Microsoft.Compute/virtualMachines/wBUKH0S2dTGAsB",
+    "host.id": "6ee932f2-688c-4c31-a47f-3709ba0abfc4",
+    "host.name": "wBUKH0S2dTGAsB",
     "host.type": "Standard_D4ads_v5",
     "os.type": "linux",
-    "os.version": "6.11.0-1018-azure",
-    "service.instance.id": "3a57a563-473e-4a0b-a561-35beb0f36ba2",
-    "process.pid": 4051,
-    "process.parent_pid": 4049,
+    "os.version": "6.17.0-1022-azure",
+    "process.pid": 4442,
+    "process.parent_pid": 4441,
     "process.executable.name": "dash",
     "process.executable.path": "/usr/bin/dash",
     "process.command_line": "/bin/sh -e /usr/bin/otel4netcat_handler printf HTTP/1.1 418 I'm a teapot",
@@ -343,8 +343,8 @@ bash -e demo.sh
   },
   "links": [
     {
-      "trace_id": "909dcbc3e0e7e1a45df33990e2264368",
-      "span_id": "08808c5f639564d0",
+      "trace_id": "e374321e80825fe91a66dd8b1907d889",
+      "span_id": "cd57ada7a3655289",
       "attributes": {}
     }
   ],
